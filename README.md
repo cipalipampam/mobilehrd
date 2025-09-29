@@ -1,50 +1,228 @@
-# Welcome to your Expo app 👋
+# Mobile HRD - Employee Mobile Application
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Aplikasi mobile untuk karyawan yang terintegrasi dengan sistem HRD backend Express.js.
 
-## Get started
+## 🚀 Fitur Utama
 
-1. Install dependencies
+### 1. **Dashboard Karyawan**
+- Overview profil karyawan
+- Statistik kinerja (masa kerja, KPI, rating)
+- Akses cepat ke fitur utama
+- Pelatihan terbaru
 
-   ```bash
-   npm install
-   ```
+### 2. **Manajemen Profil**
+- Lihat dan edit data pribadi
+- Informasi kerja (departemen, jabatan, masa kerja)
+- Update alamat dan kontak
+- Foto profil
 
-2. Start the app
+### 3. **Pelatihan & Pengembangan**
+- Daftar pelatihan yang diikuti
+- Status pelatihan (selesai, akan datang, hari ini)
+- Skor dan catatan pelatihan
+- Filter berdasarkan status
+- Unduh sertifikat
 
-   ```bash
-   npx expo start
-   ```
+### 4. **Performance Tracking**
+- Grafik KPI dan Rating per tahun
+- Level performa (Excellent, Good, Average, dll)
+- Tips peningkatan kinerja
+- Riwayat lengkap penilaian
 
-In the output, you'll find options to open the app in a
+### 5. **Notifikasi**
+- Notifikasi pelatihan baru
+- Update KPI dan rating
+- Pengumuman perusahaan
+- Reminder evaluasi kinerja
+- Filter notifikasi (semua/belum dibaca)
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## 🛠 Teknologi
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+- **Framework**: React Native dengan Expo
+- **Navigation**: Expo Router
+- **UI Components**: Custom components dengan Ionicons
+- **Charts**: React Native Chart Kit
+- **Storage**: Expo Secure Store
+- **HTTP Client**: Fetch API
+- **State Management**: React Context
 
-## Get a fresh project
+## 📱 Struktur Aplikasi
 
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+app/
+├── (auth)/
+│   ├── login.tsx          # Halaman login
+│   └── _layout.tsx        # Layout autentikasi
+├── (tabs)/
+│   ├── dashboard.tsx      # Dashboard utama
+│   ├── profile.tsx        # Profil karyawan
+│   ├── training.tsx       # Pelatihan
+│   ├── performance.tsx    # Kinerja
+│   ├── notifications.tsx  # Notifikasi
+│   └── _layout.tsx        # Layout tab navigator
+└── _layout.tsx            # Root layout
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## 🔧 Setup & Installation
 
-## Learn more
+### Prerequisites
+- Node.js 18+
+- Expo CLI
+- Backend Express.js berjalan di port 3000
 
-To learn more about developing your project with Expo, look at the following resources:
+### Installation
+```bash
+# Install dependencies
+npm install
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+# Start development server
+npm start
 
-## Join the community
+# Run on specific platform
+npm run android
+npm run ios
+npm run web
+```
 
-Join our community of developers creating universal apps.
+### Environment Configuration
+Pastikan backend Express.js berjalan di `http://localhost:3000` atau update `API_BASE_URL` di `services/api.ts`.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## 🔐 Autentikasi
+
+- Login dengan email/username dan password
+- JWT token disimpan secara aman menggunakan Expo Secure Store
+- Automatic logout saat token expired
+- Role-based access (KARYAWAN)
+
+## 📊 Integrasi Backend
+
+### API Endpoints yang Digunakan
+- `POST /api/auth/login` - Login karyawan
+- `GET /api/karyawan` - Data profil karyawan
+- `PUT /api/karyawan/me` - Update profil
+- `GET /api/pelatihan/my` - Pelatihan karyawan
+- `GET /api/karyawan/my-kpi` - Data KPI
+- `GET /api/karyawan/my-rating` - Data rating
+
+### Data Models
+```typescript
+interface Karyawan {
+  id: string;
+  nama: string;
+  gender: 'Pria' | 'Wanita';
+  alamat?: string;
+  no_telp?: string;
+  tanggal_lahir?: string;
+  pendidikan: string;
+  tanggal_masuk: string;
+  jalur_rekrut: string;
+  umur?: number;
+  masaKerja?: number;
+  Departemen: Array<{ id: string; nama: string }>;
+  Jabatan: Array<{ id: string; nama: string }>;
+  KPI: Array<{ id: string; year: number; score: number; notes?: string }>;
+  Rating: Array<{ id: string; year: number; score: number; notes?: string }>;
+  pelatihanDetail: Array<{
+    id: string;
+    skor?: number;
+    catatan?: string;
+    pelatihan: {
+      id: string;
+      nama: string;
+      tanggal: string;
+      lokasi: string;
+    };
+  }>;
+}
+```
+
+## 🎨 UI/UX Features
+
+### Design System
+- **Primary Color**: #667eea (Blue gradient)
+- **Secondary Color**: #764ba2 (Purple gradient)
+- **Typography**: System fonts dengan berbagai weight
+- **Icons**: Ionicons
+- **Shadows**: Subtle shadows untuk depth
+- **Border Radius**: 12px untuk cards, 8px untuk buttons
+
+### Responsive Design
+- Optimized untuk berbagai ukuran layar
+- Touch-friendly interface
+- Pull-to-refresh functionality
+- Loading states dan error handling
+
+### Accessibility
+- High contrast colors
+- Touch targets minimum 44px
+- Screen reader support
+- Keyboard navigation
+
+## 🔄 State Management
+
+### AuthContext
+- Global authentication state
+- User data management
+- Login/logout functionality
+- Token management
+
+### Local State
+- Component-level state untuk UI
+- Form data management
+- Loading states
+- Error handling
+
+## 📱 Platform Support
+
+- **iOS**: Native iOS app
+- **Android**: Native Android app
+- **Web**: Progressive Web App (PWA)
+
+## 🚀 Deployment
+
+### Development
+```bash
+npm run dev
+```
+
+### Production Build
+```bash
+# Build for Android
+expo build:android
+
+# Build for iOS
+expo build:ios
+
+# Build for Web
+expo build:web
+```
+
+## 🔧 Customization
+
+### Themes
+Update colors di `constants/theme.ts` untuk mengubah skema warna.
+
+### API Configuration
+Update `services/api.ts` untuk mengubah endpoint atau menambah fitur baru.
+
+### Navigation
+Modifikasi `app/(tabs)/_layout.tsx` untuk menambah/mengubah tab navigasi.
+
+## 📝 Notes
+
+- Aplikasi ini dirancang khusus untuk role KARYAWAN
+- Fitur HRD (decision support, training model) tidak tersedia di mobile
+- Data real-time sync dengan backend Express.js
+- Offline capability terbatas (hanya data yang sudah di-cache)
+
+## 🤝 Contributing
+
+1. Fork repository
+2. Create feature branch
+3. Commit changes
+4. Push to branch
+5. Create Pull Request
+
+## 📄 License
+
+Private project - All rights reserved

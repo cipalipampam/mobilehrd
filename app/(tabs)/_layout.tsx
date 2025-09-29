@@ -1,33 +1,118 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '@/contexts/AuthContext';
+import { router } from 'expo-router';
+import { useEffect } from 'react';
+import { View, Text, ActivityIndicator } from 'react-native';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const { isAuthenticated, isLoading } = useAuth();
+
+  useEffect(() => {
+    // Only navigate after loading is complete and user is not authenticated
+    if (!isLoading && !isAuthenticated) {
+      router.replace('/(auth)/login');
+    }
+  }, [isAuthenticated, isLoading]);
+
+  // Show loading screen while checking auth status
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#667eea" />
+        <Text style={{ marginTop: 10, color: '#666' }}>Loading...</Text>
+      </View>
+    );
+  }
+
+  // Don't render tabs if not authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarActiveTintColor: '#667eea',
+        tabBarInactiveTintColor: '#999',
         headerShown: false,
-        tabBarButton: HapticTab,
+        tabBarStyle: {
+          backgroundColor: 'white',
+          borderTopWidth: 1,
+          borderTopColor: '#e0e0e0',
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 8,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '500',
+        },
       }}>
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: 'Dashboard',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons 
+              name={focused ? "home" : "home-outline"} 
+              size={24} 
+              color={color} 
+            />
+          ),
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="performance"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: 'Kinerja',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons 
+              name={focused ? "trending-up" : "trending-up-outline"} 
+              size={24} 
+              color={color} 
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="training"
+        options={{
+          title: 'Pelatihan',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons 
+              name={focused ? "school" : "school-outline"} 
+              size={24} 
+              color={color} 
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="notifications"
+        options={{
+          title: 'Notifikasi',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons 
+              name={focused ? "notifications" : "notifications-outline"} 
+              size={24} 
+              color={color} 
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profil',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons 
+              name={focused ? "person" : "person-outline"} 
+              size={24} 
+              color={color} 
+            />
+          ),
         }}
       />
     </Tabs>
