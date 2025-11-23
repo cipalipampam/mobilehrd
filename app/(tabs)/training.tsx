@@ -11,7 +11,8 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
-import { apiService, Karyawan, Pelatihan, PelatihanInfo } from '@/services/api';
+import { apiService, Karyawan, Pelatihan, PelatihanInfo, TrainingStatus } from '@/services/api';
+import { Platform } from 'react-native';
 
 export default function TrainingScreen() {
   const { user } = useAuth();
@@ -19,7 +20,7 @@ export default function TrainingScreen() {
   const [trainings, setTrainings] = useState<Pelatihan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedFilter, setSelectedFilter] = useState<'all' | 'completed' | 'upcoming'>('all');
+  const [selectedFilter, setSelectedFilter] = useState<'today' | 'completed' | 'upcoming'>('today');
 
   useEffect(() => {
     loadTrainingData();
@@ -70,23 +71,70 @@ export default function TrainingScreen() {
     }
   };
 
+  const handleConfirm = async (pelatihanId: string) => {
+    try {
+      await apiService.confirmTraining(pelatihanId);
+      await loadTrainingData();
+      Alert.alert('Berhasil', 'Anda telah mengonfirmasi keikutsertaan.');
+    } catch (e: any) {
+      Alert.alert('Gagal', e?.message || 'Tidak dapat mengonfirmasi.');
+    }
+  };
+
+  const handleDecline = async (pelatihanId: string) => {
+    const performDecline = async (alasan?: string) => {
+      try {
+        await apiService.declineTraining(pelatihanId, alasan);
+        await loadTrainingData();
+        Alert.alert('Tersimpan', 'Anda menolak undangan pelatihan.');
+      } catch (e: any) {
+        Alert.alert('Gagal', e?.message || 'Tidak dapat menolak.');
+      }
+    };
+
+    if (Platform.OS === 'ios') {
+      // iOS supports prompt
+      // @ts-ignore
+      Alert.prompt('Tolak Undangan', 'Opsional: tambahkan alasan penolakan', [
+        { text: 'Batal', style: 'cancel' },
+        { text: 'Kirim', onPress: (text?: string) => performDecline(text) }
+      ]);
+    } else {
+      Alert.alert('Tolak Undangan', 'Anda yakin ingin menolak undangan ini?', [
+        { text: 'Batal', style: 'cancel' },
+        { text: 'Ya, Tolak', style: 'destructive', onPress: () => performDecline() }
+      ]);
+    }
+  };
+
   const getFilteredTrainings = () => {
-    if (!karyawan?.pelatihanDetail) return [];
+    if (!trainings || trainings.length === 0) return [];
     
-    let filtered = karyawan.pelatihanDetail;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     
-    if (selectedFilter === 'completed') {
-      filtered = filtered.filter(detail => 
-        new Date(detail.pelatihan.tanggal) < new Date()
+    let filtered = trainings;
+    
+    if (selectedFilter === 'today') {
+      filtered = filtered.filter(t => {
+        const trainingDate = new Date(t.tanggal);
+        trainingDate.setHours(0, 0, 0, 0);
+        return trainingDate.getTime() === today.getTime();
+      });
+    } else if (selectedFilter === 'completed') {
+      filtered = filtered.filter(t => 
+        new Date(t.tanggal) < today
       );
     } else if (selectedFilter === 'upcoming') {
-      filtered = filtered.filter(detail => 
-        new Date(detail.pelatihan.tanggal) >= new Date()
-      );
+      filtered = filtered.filter(t => {
+        const trainingDate = new Date(t.tanggal);
+        trainingDate.setHours(0, 0, 0, 0);
+        return trainingDate.getTime() > today.getTime();
+      });
     }
     
     return filtered.sort((a, b) => 
-      new Date(b.pelatihan.tanggal).getTime() - new Date(a.pelatihan.tanggal).getTime()
+      new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime()
     );
   };
 
@@ -135,15 +183,15 @@ export default function TrainingScreen() {
         <TouchableOpacity
           style={[
             styles.filterTab,
-            selectedFilter === 'all' && styles.filterTabActive
+            selectedFilter === 'today' && styles.filterTabActive
           ]}
-          onPress={() => setSelectedFilter('all')}
+          onPress={() => setSelectedFilter('today')}
         >
           <Text style={[
             styles.filterTabText,
-            selectedFilter === 'all' && styles.filterTabTextActive
+            selectedFilter === 'today' && styles.filterTabTextActive
           ]}>
-            Semua
+            Hari Ini
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -179,26 +227,39 @@ export default function TrainingScreen() {
       {/* Training List */}
       <View style={styles.content}>
         {filteredTrainings.length > 0 ? (
-          filteredTrainings.map((trainingDetail, index) => {
-            const status = getTrainingStatus(trainingDetail.pelatihan);
+          filteredTrainings.map((training, index) => {
+            const status = getTrainingStatus(training);
+            // Get first peserta data (assuming current user is the only one or first)
+            const myDetail = training.peserta?.[0];
+            
             return (
-              <View key={index} style={styles.trainingCard}>
+              <View key={training.id || index} style={styles.trainingCard}>
                 <View style={styles.trainingHeader}>
                   <View style={styles.trainingInfo}>
                     <Text style={styles.trainingName}>
-                      {trainingDetail.pelatihan.nama}
+                      {training.nama}
                     </Text>
+                    {!!training.jenis && (
+                      <View style={styles.badgesRow}>
+                        <View style={[
+                          styles.jenisBadge,
+                          { backgroundColor: training.jenis === 'WAJIB' ? '#f59e0b' : '#3b82f6' }
+                        ]}>
+                          <Text style={styles.jenisBadgeText}>{training.jenis}</Text>
+                        </View>
+                      </View>
+                    )}
                     <View style={styles.trainingMeta}>
                       <View style={styles.metaItem}>
                         <Ionicons name="calendar-outline" size={16} color="#666" />
                         <Text style={styles.metaText}>
-                          {formatDate(trainingDetail.pelatihan.tanggal)}
+                          {formatDate(training.tanggal)}
                         </Text>
                       </View>
                       <View style={styles.metaItem}>
                         <Ionicons name="location-outline" size={16} color="#666" />
                         <Text style={styles.metaText}>
-                          {trainingDetail.pelatihan.lokasi}
+                          {training.lokasi}
                         </Text>
                       </View>
                     </View>
@@ -215,27 +276,73 @@ export default function TrainingScreen() {
                   </View>
                 </View>
 
-                {trainingDetail.skor && (
+                {myDetail?.skor && (
                   <View style={styles.scoreContainer}>
                     <View style={styles.scoreItem}>
                       <Text style={styles.scoreLabel}>Skor</Text>
-                      <Text style={styles.scoreValue}>{trainingDetail.skor}</Text>
+                      <Text style={styles.scoreValue}>{myDetail.skor}</Text>
                     </View>
                     <View style={styles.scoreBar}>
                       <View 
                         style={[
                           styles.scoreProgress,
-                          { width: `${(trainingDetail.skor / 100) * 100}%` }
+                          { width: `${(myDetail.skor / 100) * 100}%` }
                         ]}
                       />
                     </View>
                   </View>
                 )}
 
-                {trainingDetail.catatan && (
+                {myDetail?.catatan && (
                   <View style={styles.notesContainer}>
                     <Text style={styles.notesLabel}>Catatan:</Text>
-                    <Text style={styles.notesText}>{trainingDetail.catatan}</Text>
+                    <Text style={styles.notesText}>{myDetail.catatan}</Text>
+                  </View>
+                )}
+
+                {/* Training Invitation Actions */}
+                {myDetail?.status === 'INVITED' && status !== 'completed' && training.jenis !== 'WAJIB' && (
+                  <View style={styles.invitationActions}>
+                    <TouchableOpacity 
+                      style={styles.acceptButton}
+                      onPress={() => handleConfirm(training.id)}
+                    >
+                      <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                      <Text style={styles.acceptButtonText}>Terima</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={styles.declineButton}
+                      onPress={() => handleDecline(training.id)}
+                    >
+                      <Ionicons name="close-circle" size={20} color="#fff" />
+                      <Text style={styles.declineButtonText}>Tolak</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Status Info for Confirmed/Declined */}
+                {myDetail?.status === 'CONFIRMED' && (
+                  <View style={styles.statusInfoContainer}>
+                    <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                    <Text style={styles.statusInfoText}>
+                      Anda telah mengonfirmasi keikutsertaan
+                    </Text>
+                  </View>
+                )}
+
+                {myDetail?.status === 'DECLINED' && (
+                  <View style={styles.statusInfoContainer}>
+                    <Ionicons name="close-circle" size={20} color="#f44336" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.statusInfoText}>
+                        Anda menolak undangan ini
+                      </Text>
+                      {myDetail.alasanPenolakan && (
+                        <Text style={styles.declineReasonText}>
+                          Alasan: {myDetail.alasanPenolakan}
+                        </Text>
+                      )}
+                    </View>
                   </View>
                 )}
 
@@ -244,7 +351,7 @@ export default function TrainingScreen() {
                     <Ionicons name="document-text-outline" size={16} color="#667eea" />
                     <Text style={styles.actionButtonText}>Detail</Text>
                   </TouchableOpacity>
-                  {trainingDetail.skor && (
+                  {myDetail?.skor && (
                     <TouchableOpacity style={styles.actionButton}>
                       <Ionicons name="download-outline" size={16} color="#667eea" />
                       <Text style={styles.actionButtonText}>Sertifikat</Text>
@@ -259,8 +366,8 @@ export default function TrainingScreen() {
             <Ionicons name="school-outline" size={64} color="#ccc" />
             <Text style={styles.emptyTitle}>Tidak ada pelatihan</Text>
             <Text style={styles.emptySubtitle}>
-              {selectedFilter === 'all' 
-                ? 'Belum ada pelatihan yang diikuti'
+              {selectedFilter === 'today' 
+                ? 'Tidak ada pelatihan hari ini'
                 : `Tidak ada pelatihan ${selectedFilter === 'completed' ? 'yang selesai' : 'yang akan datang'}`
               }
             </Text>
@@ -379,6 +486,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
+  badgesRow: {
+    flexDirection: 'row',
+    marginBottom: 6,
+    gap: 8,
+  },
+  jenisBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 14,
+  },
+  jenisBadgeText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
   scoreContainer: {
     backgroundColor: '#f8f9fa',
     borderRadius: 8,
@@ -427,6 +550,61 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     lineHeight: 20,
+  },
+  invitationActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 15,
+  },
+  acceptButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#4CAF50',
+    gap: 6,
+  },
+  acceptButtonText: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  declineButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#f44336',
+    gap: 6,
+  },
+  declineButtonText: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  statusInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 15,
+    gap: 8,
+  },
+  statusInfoText: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '500',
+  },
+  declineReasonText: {
+    fontSize: 13,
+    color: '#666',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   trainingActions: {
     flexDirection: 'row',

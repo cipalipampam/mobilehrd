@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 
-const API_BASE_URL = 'http://192.168.0.101:3000/api'; // Your computer's IP address
+const API_BASE_URL = 'http://10.10.6.63:3000/api'; // Your computer's IP address
 
 export interface User {
   username: string;
@@ -39,6 +39,10 @@ export interface Karyawan {
     id: string;
     skor?: number;
     catatan?: string;
+    status?: TrainingStatus;
+    respondedAt?: string | null;
+    alasanPenolakan?: string | null;
+    hadir?: boolean;
     pelatihan: PelatihanInfo;
   }>;
 }
@@ -55,12 +59,19 @@ export interface Pelatihan {
   nama: string;
   tanggal: string;
   lokasi: string;
+  jenis?: 'WAJIB' | 'OPSIONAL';
   peserta: Array<{
     id: string;
     skor?: number;
     catatan?: string;
+    status?: TrainingStatus;
+    respondedAt?: string | null;
+    alasanPenolakan?: string | null;
+    hadir?: boolean;
   }>;
 }
+
+export type TrainingStatus = 'INVITED' | 'CONFIRMED' | 'DECLINED' | 'ATTENDED';
 
 class ApiService {
   async getToken(): Promise<string | null> {
@@ -160,6 +171,21 @@ class ApiService {
   // Training methods
   async getMyTrainings(): Promise<Pelatihan[]> {
     const response = await this.makeRequest('/pelatihan/my');
+    return response.data;
+  }
+
+  async confirmTraining(pelatihanId: string): Promise<any> {
+    const response = await this.makeRequest(`/pelatihan/${pelatihanId}/confirm`, {
+      method: 'POST'
+    });
+    return response.data;
+  }
+
+  async declineTraining(pelatihanId: string, alasan?: string): Promise<any> {
+    const response = await this.makeRequest(`/pelatihan/${pelatihanId}/decline`, {
+      method: 'POST',
+      body: JSON.stringify({ alasan })
+    });
     return response.data;
   }
 
