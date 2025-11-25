@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 
-const API_BASE_URL = 'http://10.10.6.63:3000/api'; // Your computer's IP address
+const API_BASE_URL = 'http://10.125.173.41:5000/api'; // Your computer's IP address
 
 export interface User {
   username: string;
@@ -169,8 +169,20 @@ class ApiService {
   }
 
   // Training methods
-  async getMyTrainings(): Promise<Pelatihan[]> {
+  async getAvailableTrainings(): Promise<Pelatihan[]> {
+    const response = await this.makeRequest('/pelatihan/available');
+    return response.data;
+  }
+
+  async getMyTrainings(): Promise<any[]> {
     const response = await this.makeRequest('/pelatihan/my');
+    return response.data;
+  }
+
+  async joinTraining(pelatihanId: string): Promise<any> {
+    const response = await this.makeRequest(`/pelatihan/${pelatihanId}/join`, {
+      method: 'POST'
+    });
     return response.data;
   }
 

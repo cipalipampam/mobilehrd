@@ -17,10 +17,12 @@ import { Platform } from 'react-native';
 export default function TrainingScreen() {
   const { user } = useAuth();
   const [karyawan, setKaryawan] = useState<Karyawan | null>(null);
-  const [trainings, setTrainings] = useState<Pelatihan[]>([]);
+  const [trainings, setTrainings] = useState<any[]>([]);
+  const [availableTrainings, setAvailableTrainings] = useState<Pelatihan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<'today' | 'completed' | 'upcoming'>('today');
+  const [activeTab, setActiveTab] = useState<'mytrainings' | 'available'>('mytrainings');
 
   useEffect(() => {
     loadTrainingData();
@@ -29,12 +31,14 @@ export default function TrainingScreen() {
   const loadTrainingData = async () => {
     try {
       setIsLoading(true);
-      const [profileData, trainingData] = await Promise.all([
+      const [profileData, trainingData, availableData] = await Promise.all([
         apiService.getMyProfile(),
-        apiService.getMyTrainings()
+        apiService.getMyTrainings(),
+        apiService.getAvailableTrainings()
       ]);
       setKaryawan(profileData);
       setTrainings(trainingData);
+      setAvailableTrainings(availableData);
     } catch (error) {
       console.error('Error loading training data:', error);
       Alert.alert('Error', 'Gagal memuat data pelatihan');
@@ -81,6 +85,16 @@ export default function TrainingScreen() {
     }
   };
 
+  const handleJoin = async (pelatihanId: string) => {
+    try {
+      await apiService.joinTraining(pelatihanId);
+      await loadTrainingData();
+      Alert.alert('Berhasil', 'Anda berhasil mendaftar pelatihan.');
+    } catch (e: any) {
+      Alert.alert('Gagal', e?.message || 'Tidak dapat mendaftar.');
+    }
+  };
+
   const handleDecline = async (pelatihanId: string) => {
     const performDecline = async (alasan?: string) => {
       try {
@@ -107,6 +121,15 @@ export default function TrainingScreen() {
     }
   };
 
+  const getMyJoinedIds = () => {
+    return trainings.map(t => t.pelatihan?.id || t.id).filter(Boolean);
+  };
+
+  const getAvailableNotJoined = () => {
+    const joinedIds = getMyJoinedIds();
+    return availableTrainings.filter(t => !joinedIds.includes(t.id));
+  };
+
   const getFilteredTrainings = () => {
     if (!trainings || trainings.length === 0) return [];
     
@@ -117,25 +140,33 @@ export default function TrainingScreen() {
     
     if (selectedFilter === 'today') {
       filtered = filtered.filter(t => {
-        const trainingDate = new Date(t.tanggal);
+        const tanggal = t.pelatihan?.tanggal || t.tanggal;
+        if (!tanggal) return false;
+        const trainingDate = new Date(tanggal);
         trainingDate.setHours(0, 0, 0, 0);
         return trainingDate.getTime() === today.getTime();
       });
     } else if (selectedFilter === 'completed') {
-      filtered = filtered.filter(t => 
-        new Date(t.tanggal) < today
-      );
+      filtered = filtered.filter(t => {
+        const tanggal = t.pelatihan?.tanggal || t.tanggal;
+        if (!tanggal) return false;
+        return new Date(tanggal) < today;
+      });
     } else if (selectedFilter === 'upcoming') {
       filtered = filtered.filter(t => {
-        const trainingDate = new Date(t.tanggal);
+        const tanggal = t.pelatihan?.tanggal || t.tanggal;
+        if (!tanggal) return false;
+        const trainingDate = new Date(tanggal);
         trainingDate.setHours(0, 0, 0, 0);
         return trainingDate.getTime() > today.getTime();
       });
     }
     
-    return filtered.sort((a, b) => 
-      new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime()
-    );
+    return filtered.sort((a, b) => {
+      const dateA = a.pelatihan?.tanggal || a.tanggal;
+      const dateB = b.pelatihan?.tanggal || b.tanggal;
+      return new Date(dateB).getTime() - new Date(dateA).getTime();
+    });
   };
 
   const getStatusColor = (status: string) => {
@@ -173,79 +204,119 @@ export default function TrainingScreen() {
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Pelatihan & Pengembangan</Text>
           <Text style={styles.headerSubtitle}>
-            {filteredTrainings.length} pelatihan ditemukan
+            {activeTab === 'mytrainings' 
+              ? `${filteredTrainings.length} pelatihan diikuti`
+              : `${getAvailableNotJoined().length} pelatihan tersedia`
+            }
           </Text>
         </View>
       </LinearGradient>
 
-      {/* Filter Tabs */}
-      <View style={styles.filterContainer}>
+      {/* Main Tabs */}
+      <View style={styles.mainTabsContainer}>
         <TouchableOpacity
           style={[
-            styles.filterTab,
-            selectedFilter === 'today' && styles.filterTabActive
+            styles.mainTab,
+            activeTab === 'mytrainings' && styles.mainTabActive
           ]}
-          onPress={() => setSelectedFilter('today')}
+          onPress={() => setActiveTab('mytrainings')}
         >
           <Text style={[
-            styles.filterTabText,
-            selectedFilter === 'today' && styles.filterTabTextActive
+            styles.mainTabText,
+            activeTab === 'mytrainings' && styles.mainTabTextActive
           ]}>
-            Hari Ini
+            Pelatihan Saya
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[
-            styles.filterTab,
-            selectedFilter === 'upcoming' && styles.filterTabActive
+            styles.mainTab,
+            activeTab === 'available' && styles.mainTabActive
           ]}
-          onPress={() => setSelectedFilter('upcoming')}
+          onPress={() => setActiveTab('available')}
         >
           <Text style={[
-            styles.filterTabText,
-            selectedFilter === 'upcoming' && styles.filterTabTextActive
+            styles.mainTabText,
+            activeTab === 'available' && styles.mainTabTextActive
           ]}>
-            Akan Datang
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.filterTab,
-            selectedFilter === 'completed' && styles.filterTabActive
-          ]}
-          onPress={() => setSelectedFilter('completed')}
-        >
-          <Text style={[
-            styles.filterTabText,
-            selectedFilter === 'completed' && styles.filterTabTextActive
-          ]}>
-            Selesai
+            Cari Pelatihan
           </Text>
         </TouchableOpacity>
       </View>
 
+      {/* Filter Tabs - Only show for My Trainings */}
+      {activeTab === 'mytrainings' && (
+        <View style={styles.filterContainer}>
+          <TouchableOpacity
+            style={[
+              styles.filterTab,
+              selectedFilter === 'today' && styles.filterTabActive
+            ]}
+            onPress={() => setSelectedFilter('today')}
+          >
+            <Text style={[
+              styles.filterTabText,
+              selectedFilter === 'today' && styles.filterTabTextActive
+            ]}>
+              Hari Ini
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterTab,
+              selectedFilter === 'upcoming' && styles.filterTabActive
+            ]}
+            onPress={() => setSelectedFilter('upcoming')}
+          >
+            <Text style={[
+              styles.filterTabText,
+              selectedFilter === 'upcoming' && styles.filterTabTextActive
+            ]}>
+              Akan Datang
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterTab,
+              selectedFilter === 'completed' && styles.filterTabActive
+            ]}
+            onPress={() => setSelectedFilter('completed')}
+          >
+            <Text style={[
+              styles.filterTabText,
+              selectedFilter === 'completed' && styles.filterTabTextActive
+            ]}>
+              Selesai
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Training List */}
       <View style={styles.content}>
-        {filteredTrainings.length > 0 ? (
-          filteredTrainings.map((training, index) => {
-            const status = getTrainingStatus(training);
-            // Get first peserta data (assuming current user is the only one or first)
-            const myDetail = training.peserta?.[0];
+        {activeTab === 'mytrainings' ? (
+          // My Trainings Tab
+          filteredTrainings.length > 0 ? (
+            filteredTrainings.map((training, index) => {
+              const pelatihanData = training.pelatihan || training;
+              const status = getTrainingStatus(pelatihanData);
+              // Get first peserta data (assuming current user is the only one or first)
+              const myDetail = training.peserta?.[0] || training;
             
             return (
-              <View key={training.id || index} style={styles.trainingCard}>
+              <View key={pelatihanData.id || index} style={styles.trainingCard}>
                 <View style={styles.trainingHeader}>
                   <View style={styles.trainingInfo}>
                     <Text style={styles.trainingName}>
-                      {training.nama}
+                      {pelatihanData.nama}
                     </Text>
-                    {!!training.jenis && (
+                    {!!pelatihanData.jenis && (
                       <View style={styles.badgesRow}>
                         <View style={[
                           styles.jenisBadge,
-                          { backgroundColor: training.jenis === 'WAJIB' ? '#f59e0b' : '#3b82f6' }
+                          { backgroundColor: pelatihanData.jenis === 'WAJIB' ? '#f59e0b' : '#3b82f6' }
                         ]}>
-                          <Text style={styles.jenisBadgeText}>{training.jenis}</Text>
+                          <Text style={styles.jenisBadgeText}>{pelatihanData.jenis}</Text>
                         </View>
                       </View>
                     )}
@@ -253,13 +324,13 @@ export default function TrainingScreen() {
                       <View style={styles.metaItem}>
                         <Ionicons name="calendar-outline" size={16} color="#666" />
                         <Text style={styles.metaText}>
-                          {formatDate(training.tanggal)}
+                          {formatDate(pelatihanData.tanggal)}
                         </Text>
                       </View>
                       <View style={styles.metaItem}>
                         <Ionicons name="location-outline" size={16} color="#666" />
                         <Text style={styles.metaText}>
-                          {training.lokasi}
+                          {pelatihanData.lokasi}
                         </Text>
                       </View>
                     </View>
@@ -301,18 +372,18 @@ export default function TrainingScreen() {
                 )}
 
                 {/* Training Invitation Actions */}
-                {myDetail?.status === 'INVITED' && status !== 'completed' && training.jenis !== 'WAJIB' && (
+                {myDetail?.status === 'INVITED' && status !== 'completed' && pelatihanData.jenis !== 'WAJIB' && (
                   <View style={styles.invitationActions}>
                     <TouchableOpacity 
                       style={styles.acceptButton}
-                      onPress={() => handleConfirm(training.id)}
+                      onPress={() => handleConfirm(pelatihanData.id)}
                     >
                       <Ionicons name="checkmark-circle" size={20} color="#fff" />
                       <Text style={styles.acceptButtonText}>Terima</Text>
                     </TouchableOpacity>
                     <TouchableOpacity 
                       style={styles.declineButton}
-                      onPress={() => handleDecline(training.id)}
+                      onPress={() => handleDecline(pelatihanData.id)}
                     >
                       <Ionicons name="close-circle" size={20} color="#fff" />
                       <Text style={styles.declineButtonText}>Tolak</Text>
@@ -372,6 +443,85 @@ export default function TrainingScreen() {
               }
             </Text>
           </View>
+        )
+        ) : (
+          // Available Trainings Tab
+          getAvailableNotJoined().length > 0 ? (
+            getAvailableNotJoined().map((training, index) => {
+              const status = getTrainingStatus(training);
+              
+              return (
+                <View key={training.id || index} style={styles.trainingCard}>
+                  <View style={styles.trainingHeader}>
+                    <View style={styles.trainingInfo}>
+                      <Text style={styles.trainingName}>
+                        {training.nama}
+                      </Text>
+                      {!!training.jenis && (
+                        <View style={styles.badgesRow}>
+                          <View style={[
+                            styles.jenisBadge,
+                            { backgroundColor: training.jenis === 'WAJIB' ? '#f59e0b' : '#3b82f6' }
+                          ]}>
+                            <Text style={styles.jenisBadgeText}>{training.jenis}</Text>
+                          </View>
+                        </View>
+                      )}
+                      <View style={styles.trainingMeta}>
+                        <View style={styles.metaItem}>
+                          <Ionicons name="calendar-outline" size={16} color="#666" />
+                          <Text style={styles.metaText}>
+                            {formatDate(training.tanggal)}
+                          </Text>
+                        </View>
+                        <View style={styles.metaItem}>
+                          <Ionicons name="location-outline" size={16} color="#666" />
+                          <Text style={styles.metaText}>
+                            {training.lokasi}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                    <View style={styles.statusContainer}>
+                      <View style={[
+                        styles.statusBadge,
+                        { backgroundColor: getStatusColor(status) }
+                      ]}>
+                        <Text style={styles.statusText}>
+                          {getStatusText(status)}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Join Button */}
+                  {status !== 'completed' && (
+                    <TouchableOpacity 
+                      style={styles.joinButton}
+                      onPress={() => handleJoin(training.id)}
+                    >
+                      <Ionicons name="add-circle" size={20} color="#fff" />
+                      <Text style={styles.joinButtonText}>Daftar Pelatihan</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {status === 'completed' && (
+                    <View style={styles.completedNote}>
+                      <Text style={styles.completedNoteText}>Pelatihan sudah selesai</Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })
+          ) : (
+            <View style={styles.emptyState}>
+              <Ionicons name="checkmark-circle-outline" size={64} color="#4CAF50" />
+              <Text style={styles.emptyTitle}>Semua Pelatihan Sudah Diikuti</Text>
+              <Text style={styles.emptySubtitle}>
+                Anda sudah terdaftar di semua pelatihan yang tersedia
+              </Text>
+            </View>
+          )
         )}
       </View>
     </ScrollView>
@@ -640,5 +790,61 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  mainTabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'white',
+    marginHorizontal: 20,
+    marginTop: -15,
+    marginBottom: 10,
+    borderRadius: 12,
+    padding: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  mainTab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  mainTabActive: {
+    backgroundColor: '#667eea',
+  },
+  mainTabText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '600',
+  },
+  mainTabTextActive: {
+    color: 'white',
+  },
+  joinButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#667eea',
+    gap: 6,
+  },
+  joinButtonText: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  completedNote: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+  },
+  completedNoteText: {
+    fontSize: 13,
+    color: '#666',
+    fontStyle: 'italic',
   },
 });
