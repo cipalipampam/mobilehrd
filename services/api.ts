@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 
-const API_BASE_URL = 'http://10.125.173.41:5000/api'; // Your computer's IP address
+const API_BASE_URL = 'http://10.234.19.185:5000/api'; // Your computer's IP address
 
 export interface User {
   username: string;
@@ -72,6 +72,42 @@ export interface Pelatihan {
 }
 
 export type TrainingStatus = 'INVITED' | 'CONFIRMED' | 'DECLINED' | 'ATTENDED';
+
+export type KehadiranStatus = 'HADIR' | 'TERLAMBAT' | 'IZIN' | 'SAKIT' | 'ALPA' | 'BELUM_ABSEN';
+
+export interface Kehadiran {
+  id: string;
+  karyawanId: string;
+  tanggal: string;
+  waktuMasuk?: string | null;
+  waktuKeluar?: string | null;
+  status: KehadiranStatus;
+  lokasi?: string | null;
+  keterangan?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  karyawan?: {
+    id: string;
+    nama: string;
+  };
+}
+
+export interface KehadiranStats {
+  total: number;
+  hadir: number;
+  terlambat: number;
+  izin: number;
+  sakit: number;
+  alpa: number;
+  belumAbsen: number;
+}
+
+export interface KehadiranHistoryResponse {
+  status: number;
+  message: string;
+  data: Kehadiran[];
+  stats: KehadiranStats;
+}
 
 class ApiService {
   async getToken(): Promise<string | null> {
@@ -157,7 +193,19 @@ class ApiService {
   // Karyawan methods
   async getMyProfile(): Promise<Karyawan> {
     const response = await this.makeRequest('/karyawan/me');
-    return response.data;
+    const k = response.data;
+
+    // Map backend fields (lowercase) to frontend expected fields (PascalCase)
+    const mapped: any = {
+      ...k,
+      Departemen: k.departemen || [],
+      Jabatan: k.jabatan || [],
+      KPI: k.kpi || [],
+      Rating: k.rating || [],
+      pelatihanDetail: k.pelatihandetail || [],
+    };
+
+    return mapped as Karyawan;
   }
 
   async updateProfile(data: Partial<Karyawan>): Promise<Karyawan> {
@@ -165,7 +213,18 @@ class ApiService {
       method: 'PUT',
       body: JSON.stringify(data),
     });
-    return response.data;
+
+    const k = response.data;
+    const mapped: any = {
+      ...k,
+      Departemen: k.departemen || [],
+      Jabatan: k.jabatan || [],
+      KPI: k.kpi || [],
+      Rating: k.rating || [],
+      pelatihanDetail: k.pelatihandetail || [],
+    };
+
+    return mapped as Karyawan;
   }
 
   // Training methods
@@ -210,6 +269,39 @@ class ApiService {
   async getMyRatings(): Promise<any[]> {
     const response = await this.makeRequest('/karyawan/my-rating');
     return response.data;
+  }
+
+  // Kehadiran methods
+  async checkIn(data: { lokasi?: string; keterangan?: string }): Promise<Kehadiran> {
+    const response = await this.makeRequest('/kehadiran/check-in', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.data;
+  }
+
+  async checkOut(data?: { keterangan?: string }): Promise<Kehadiran> {
+    const response = await this.makeRequest('/kehadiran/check-out', {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
+    });
+    return response.data;
+  }
+
+  async getTodayKehadiran(): Promise<Kehadiran | null> {
+    const response = await this.makeRequest('/kehadiran/today');
+    return response.data;
+  }
+
+  async getKehadiranHistory(params?: { month?: number; year?: number }): Promise<KehadiranHistoryResponse> {
+    const queryParams = new URLSearchParams();
+    if (params?.month) queryParams.append('month', params.month.toString());
+    if (params?.year) queryParams.append('year', params.year.toString());
+    
+    const queryString = queryParams.toString();
+    const endpoint = `/kehadiran/history${queryString ? `?${queryString}` : ''}`;
+    
+    return await this.makeRequest(endpoint);
   }
 }
 
