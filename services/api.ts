@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 
-const API_BASE_URL = 'http://10.234.19.185:5000/api'; // Your computer's IP address
+const API_BASE_URL = 'http://192.168.0.107:5000/api'; // Your computer's IP address
 
 export interface User {
   username: string;
@@ -75,6 +75,23 @@ export type TrainingStatus = 'INVITED' | 'CONFIRMED' | 'DECLINED' | 'ATTENDED';
 
 export type KehadiranStatus = 'HADIR' | 'TERLAMBAT' | 'IZIN' | 'SAKIT' | 'ALPA' | 'BELUM_ABSEN';
 
+export type IzinJenis = 'IZIN' | 'SAKIT';
+export type IzinStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface IzinRequest {
+  id: string;
+  karyawanId: string;
+  tanggal: string;
+  jenis: IzinJenis;
+  keterangan?: string | null;
+  fileUrl?: string | null;
+  status: IzinStatus;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Kehadiran {
   id: string;
   karyawanId: string;
@@ -107,6 +124,23 @@ export interface KehadiranHistoryResponse {
   message: string;
   data: Kehadiran[];
   stats: KehadiranStats;
+}
+
+export interface KpiBulanan {
+  karyawanId: string;
+  namaKaryawan: string;
+  departemenId: string;
+  departemen: string;
+  tahun: number;
+  bulan: string;
+  scorePresensi: string | number;
+  scorePelatihan: number;
+  bobotPresensi: number;
+  bobotPelatihan: number;
+  totalBobotIndikatorLain: number;
+  totalScoreIndikatorLain: number;
+  kpiIndikatorLain: number;
+  kpiFinal: number;
 }
 
 class ApiService {
@@ -148,7 +182,9 @@ class ApiService {
     };
 
     try {
+      console.log(`🔵 API Request: ${options.method || 'GET'} ${API_BASE_URL}${endpoint}`);
       const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+      console.log(`📊 Response Status: ${response.status} ${response.statusText}`);
       
       if (response.status === 401) {
         await this.removeToken();
@@ -157,12 +193,15 @@ class ApiService {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        console.error(`❌ Error Response:`, errorData);
         throw new Error(errorData.message || `HTTP ${response.status}`);
       }
 
-      return await response.json();
+      const data = await response.json();
+      console.log(`✅ Response Success:`, data);
+      return data;
     } catch (error) {
-      console.error('API request failed:', error);
+      console.error('❌ API request failed:', error);
       throw error;
     }
   }
@@ -271,8 +310,20 @@ class ApiService {
     return response.data;
   }
 
+  async getMyKpiBulanan(params?: { bulan?: string; tahun?: number }): Promise<KpiBulanan[]> {
+    const queryParams = new URLSearchParams();
+    if (params?.bulan) queryParams.append('bulan', params.bulan);
+    if (params?.tahun) queryParams.append('tahun', params.tahun.toString());
+    
+    const queryString = queryParams.toString();
+    const endpoint = `/karyawan-features/my-kpi-bulanan${queryString ? `?${queryString}` : ''}`;
+    
+    const response = await this.makeRequest(endpoint);
+    return response.data || [];
+  }
+
   // Kehadiran methods
-  async checkIn(data: { lokasi?: string; keterangan?: string }): Promise<Kehadiran> {
+  async checkIn(data: { lokasi?: string; latitude?: number; longitude?: number; keterangan?: string }): Promise<Kehadiran> {
     const response = await this.makeRequest('/kehadiran/check-in', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -280,7 +331,7 @@ class ApiService {
     return response.data;
   }
 
-  async checkOut(data?: { keterangan?: string }): Promise<Kehadiran> {
+  async checkOut(data?: { latitude?: number; longitude?: number; keterangan?: string }): Promise<Kehadiran> {
     const response = await this.makeRequest('/kehadiran/check-out', {
       method: 'POST',
       body: JSON.stringify(data || {}),
@@ -302,6 +353,106 @@ class ApiService {
     const endpoint = `/kehadiran/history${queryString ? `?${queryString}` : ''}`;
     
     return await this.makeRequest(endpoint);
+  }
+
+  // Izin methods
+  async submitIzinRequest(data: { tanggal: string; jenis: IzinJenis; keterangan?: string; file?: any }): Promise<IzinRequest> {
+    const formData = new FormData();
+    formData.append('tanggal', data.tanggal);
+    formData.append('jenis', data.jenis);
+    if (data.keterangan) formData.append('keterangan', data.keterangan);
+    if (data.file) {
+      formData.append('file', {
+        uri: data.file.uri,
+        type: data.file.type || 'image/jpeg',
+        name: data.file.name || 'photo.jpg',
+      } as any);
+    }
+
+    const token = await this.getToken();
+    const response = await fetch(`${API_BASE_URL}/kehadiran/request`, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.data;
+  }
+
+  async getMyIzinRequests(): Promise<IzinRequest[]> {
+    const response = await this.makeRequest('/kehadiran/my-requests');
+    return response.data;
+  }
+
+  // Auth methods
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    await this.makeRequest('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+  }
+
+  // Profile photo methods
+  async uploadProfilePhoto(fileUri: string): Promise<User> {
+    const formData = new FormData();
+    const filename = fileUri.split('/').pop() || 'photo.jpg';
+    const fileType = filename.split('.').pop()?.toLowerCase();
+    
+    formData.append('photo', {
+      uri: fileUri,
+      type: `image/${fileType === 'png' ? 'png' : 'jpeg'}`,
+      name: filename,
+    } as any);
+
+    const token = await this.getToken();
+    const response = await fetch(`${API_BASE_URL}/profile/photo`, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.data;
+  }
+
+  async deleteProfilePhoto(): Promise<User> {
+    const response = await this.makeRequest('/profile/photo', {
+      method: 'DELETE',
+    });
+    return response.data;
+  }
+
+  // Download certificate
+  async downloadCertificate(pelatihanId: string): Promise<Blob> {
+    const token = await this.getToken();
+    const response = await fetch(`${API_BASE_URL}/pelatihan/${pelatihanId}/certificate`, {
+      method: 'GET',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP ${response.status}`);
+    }
+
+    return await response.blob();
   }
 }
 

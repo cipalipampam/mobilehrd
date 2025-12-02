@@ -29,15 +29,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Validate token with backend by getting user info
           const userData = await apiService.getCurrentUser();
           setUser(userData);
+          console.log('✅ Auth restored from stored token');
         } catch (error) {
           // Token is invalid or expired, remove it
+          console.log('❌ Stored token is invalid, clearing...');
           await apiService.logout();
           setUser(null);
         }
+      } else {
+        console.log('ℹ️ No stored token found');
       }
-      setIsLoading(false);
     } catch (error) {
       console.error('Auth check failed:', error);
+    } finally {
       setIsLoading(false);
     }
   };

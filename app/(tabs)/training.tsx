@@ -7,12 +7,14 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiService, Karyawan, Pelatihan, PelatihanInfo, TrainingStatus } from '@/services/api';
-import { Platform } from 'react-native';
 
 export default function TrainingScreen() {
   const { user } = useAuth();
@@ -92,6 +94,48 @@ export default function TrainingScreen() {
       Alert.alert('Berhasil', 'Anda berhasil mendaftar pelatihan.');
     } catch (e: any) {
       Alert.alert('Gagal', e?.message || 'Tidak dapat mendaftar.');
+    }
+  };
+
+  const handleDownloadCertificate = async (pelatihanId: string, pelatihanNama: string) => {
+    try {
+      Alert.alert('Download', 'Mengunduh sertifikat...');
+      
+      const token = await apiService.getToken();
+      const fileUri = `${FileSystem.documentDirectory}Sertifikat_${pelatihanNama.replace(/\s/g, '_')}.pdf`;
+      
+      const downloadResult = await FileSystem.downloadAsync(
+        `http://10.10.184.147:5000/api/pelatihan/${pelatihanId}/certificate`,
+        fileUri,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (downloadResult.status === 200) {
+        Alert.alert(
+          'Berhasil',
+          'Sertifikat berhasil diunduh!',
+          [
+            {
+              text: 'Buka',
+              onPress: async () => {
+                if (await Sharing.isAvailableAsync()) {
+                  await Sharing.shareAsync(downloadResult.uri);
+                }
+              },
+            },
+            { text: 'OK' },
+          ]
+        );
+      } else {
+        throw new Error('Download gagal');
+      }
+    } catch (error: any) {
+      console.error('Download error:', error);
+      Alert.alert('Error', error.message || 'Gagal mengunduh sertifikat');
     }
   };
 
@@ -202,7 +246,7 @@ export default function TrainingScreen() {
         style={styles.header}
       >
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Pelatihan & Pengembangan</Text>
+          <Text style={styles.headerTitle}>Pelatihan</Text>
           <Text style={styles.headerSubtitle}>
             {activeTab === 'mytrainings' 
               ? `${filteredTrainings.length} pelatihan diikuti`
@@ -422,8 +466,11 @@ export default function TrainingScreen() {
                     <Ionicons name="document-text-outline" size={16} color="#667eea" />
                     <Text style={styles.actionButtonText}>Detail</Text>
                   </TouchableOpacity>
-                  {myDetail?.skor && (
-                    <TouchableOpacity style={styles.actionButton}>
+                  {myDetail?.hadir && (
+                    <TouchableOpacity 
+                      style={styles.actionButton}
+                      onPress={() => handleDownloadCertificate(pelatihanData.id, pelatihanData.nama)}
+                    >
                       <Ionicons name="download-outline" size={16} color="#667eea" />
                       <Text style={styles.actionButtonText}>Sertifikat</Text>
                     </TouchableOpacity>
@@ -534,35 +581,37 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   header: {
-    paddingTop: 50,
-    paddingBottom: 30,
-    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 40,
+    paddingHorizontal: 24,
   },
   headerContent: {
     alignItems: 'center',
   },
   headerTitle: {
     color: 'white',
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: 'bold',
-    marginBottom: 5,
+    marginBottom: 8,
+    letterSpacing: 0.5,
   },
   headerSubtitle: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 15,
   },
   filterContainer: {
     flexDirection: 'row',
     backgroundColor: 'white',
     marginHorizontal: 20,
-    marginTop: -15,
-    borderRadius: 12,
-    padding: 4,
+    marginTop: 0,
+    marginBottom: 16,
+    borderRadius: 16,
+    padding: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
   },
   filterTab: {
     flex: 1,
@@ -583,17 +632,18 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
+    paddingBottom: 40,
   },
   trainingCard: {
     backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 15,
+    borderRadius: 16,
+    padding: 24,
+    marginBottom: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
   },
   trainingHeader: {
     flexDirection: 'row',
@@ -795,28 +845,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: 'white',
     marginHorizontal: 20,
-    marginTop: -15,
-    marginBottom: 10,
-    borderRadius: 12,
-    padding: 4,
+    marginTop: -30,
+    marginBottom: 16,
+    borderRadius: 16,
+    padding: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
   },
   mainTab: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 14,
     alignItems: 'center',
-    borderRadius: 8,
+    borderRadius: 12,
   },
   mainTabActive: {
     backgroundColor: '#667eea',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 2,
   },
   mainTabText: {
     fontSize: 14,
-    color: '#666',
+    color: '#999',
     fontWeight: '600',
   },
   mainTabTextActive: {

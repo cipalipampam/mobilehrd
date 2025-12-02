@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiService, Karyawan } from '@/services/api';
 import { LineChart, BarChart } from 'react-native-chart-kit';
@@ -20,9 +21,14 @@ const screenWidth = Dimensions.get('window').width;
 export default function PerformanceScreen() {
   const { user } = useAuth();
   const [karyawan, setKaryawan] = useState<Karyawan | null>(null);
+  const [kpiBulanan, setKpiBulanan] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedTab, setSelectedTab] = useState<'kpi' | 'rating'>('kpi');
+  const [viewMode, setViewMode] = useState<'yearly' | 'monthly'>('yearly');
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [showYearPicker, setShowYearPicker] = useState(false);
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
 
   useEffect(() => {
     loadPerformanceData();
@@ -31,10 +37,25 @@ export default function PerformanceScreen() {
   const loadPerformanceData = async () => {
     try {
       setIsLoading(true);
-      const data = await apiService.getMyProfile();
-      setKaryawan(data);
+      console.log('🔄 Loading performance data...');
+      
+      const profileData = await apiService.getMyProfile();
+      console.log('✅ Profile loaded:', profileData.nama);
+      setKaryawan(profileData);
+      
+      // Load KPI Bulanan dengan error handling terpisah
+      try {
+        console.log('🔄 Loading KPI Bulanan...');
+        const kpiBulananData = await apiService.getMyKpiBulanan();
+        console.log('✅ KPI Bulanan loaded:', kpiBulananData.length, 'records');
+        setKpiBulanan(kpiBulananData);
+      } catch (kpiError: any) {
+        console.warn('⚠️ Failed to load KPI Bulanan:', kpiError.message);
+        // Set empty array jika gagal, tapi jangan throw error
+        setKpiBulanan([]);
+      }
     } catch (error) {
-      console.error('Error loading performance data:', error);
+      console.error('❌ Error loading performance data:', error);
       Alert.alert('Error', 'Gagal memuat data kinerja');
     } finally {
       setIsLoading(false);
@@ -50,17 +71,14 @@ export default function PerformanceScreen() {
   const getCurrentYearData = () => {
     const currentYear = new Date().getFullYear();
     const kpiData = karyawan?.KPI || [];
-    const ratingData = karyawan?.Rating || [];
     
     return {
       kpi: kpiData.find(kpi => kpi.year === currentYear),
-      rating: ratingData.find(rating => rating.year === currentYear),
       allKPI: kpiData.sort((a, b) => a.year - b.year),
-      allRating: ratingData.sort((a, b) => a.year - b.year),
     };
   };
 
-  const prepareChartData = (data: any[], type: 'kpi' | 'rating') => {
+  const prepareChartData = (data: any[]) => {
     if (!data || data.length === 0) {
       return {
         labels: ['Tidak ada data'],
@@ -92,16 +110,57 @@ export default function PerformanceScreen() {
     return { level: 'Poor', color: '#F44336' };
   };
 
+  const getMonthName = (monthNumber: string | number) => {
+    const months = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    const idx = parseInt(monthNumber.toString(), 10) - 1;
+    return months[idx] || monthNumber;
+  };
+
+  const getFilteredMonthlyKpi = () => {
+    return kpiBulanan.filter(item => {
+      const yearMatch = item.tahun === selectedYear;
+      const monthMatch = parseInt(item.bulan, 10) === selectedMonth;
+      return yearMatch && monthMatch;
+    });
+  };
+
+  const getMonthlyChartData = () => {
+    const yearData = kpiBulanan
+      .filter(item => item.tahun === selectedYear)
+      .sort((a, b) => parseInt(a.bulan, 10) - parseInt(b.bulan, 10));
+
+    if (yearData.length === 0) {
+      return {
+        labels: ['Tidak ada data'],
+        datasets: [{
+          data: [0],
+          color: (opacity = 1) => `rgba(102, 126, 234, ${opacity})`,
+        }]
+      };
+    }
+
+    return {
+      labels: yearData.map(item => getMonthName(item.bulan).substring(0, 3)),
+      datasets: [{
+        data: yearData.map(item => item.kpiFinal),
+        color: (opacity = 1) => `rgba(102, 126, 234, ${opacity})`,
+        strokeWidth: 2,
+      }]
+    };
+  };
+
   const currentData = getCurrentYearData();
-  const chartData = selectedTab === 'kpi' 
-    ? prepareChartData(currentData.allKPI, 'kpi')
-    : prepareChartData(currentData.allRating, 'rating');
-
-  const currentScore = selectedTab === 'kpi' 
-    ? currentData.kpi?.score 
-    : currentData.rating?.score;
-
+  const chartData = prepareChartData(currentData.allKPI);
+  const currentScore = currentData.kpi?.score;
   const performanceLevel = currentScore ? getPerformanceLevel(currentScore) : null;
+
+  // Helper untuk membulatkan score (pembulatan matematika untuk tampilan)
+  const formatScore = (score: number): string => {
+    return Math.round(score).toString();
+  };
 
   return (
     <ScrollView 
@@ -123,96 +182,275 @@ export default function PerformanceScreen() {
         </View>
       </LinearGradient>
 
-      {/* Tab Selector */}
+      {/* View Mode Tabs */}
       <View style={styles.tabContainer}>
         <TouchableOpacity
-          style={[
-            styles.tab,
-            selectedTab === 'kpi' && styles.tabActive
-          ]}
-          onPress={() => setSelectedTab('kpi')}
+          style={[styles.tab, viewMode === 'yearly' && styles.tabActive]}
+          onPress={() => setViewMode('yearly')}
         >
-          <Ionicons 
-            name="trophy-outline" 
-            size={20} 
-            color={selectedTab === 'kpi' ? 'white' : '#666'} 
-          />
-          <Text style={[
-            styles.tabText,
-            selectedTab === 'kpi' && styles.tabTextActive
-          ]}>
-            KPI
+          <Text style={[styles.tabText, viewMode === 'yearly' && styles.tabTextActive]}>
+            KPI Tahunan
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[
-            styles.tab,
-            selectedTab === 'rating' && styles.tabActive
-          ]}
-          onPress={() => setSelectedTab('rating')}
+          style={[styles.tab, viewMode === 'monthly' && styles.tabActive]}
+          onPress={() => setViewMode('monthly')}
         >
-          <Ionicons 
-            name="star-outline" 
-            size={20} 
-            color={selectedTab === 'rating' ? 'white' : '#666'} 
-          />
-          <Text style={[
-            styles.tabText,
-            selectedTab === 'rating' && styles.tabTextActive
-          ]}>
-            Rating
+          <Text style={[styles.tabText, viewMode === 'monthly' && styles.tabTextActive]}>
+            KPI Bulanan
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Current Performance Card */}
-      <View style={styles.content}>
-        <View style={styles.currentCard}>
-          <View style={styles.currentHeader}>
-            <Text style={styles.currentTitle}>
-              {selectedTab === 'kpi' ? 'KPI Tahun Ini' : 'Rating Tahun Ini'}
-            </Text>
-            <Text style={styles.currentYear}>{new Date().getFullYear()}</Text>
+      {/* Monthly Filter (only show in monthly mode) */}
+      {viewMode === 'monthly' && (
+        <View style={styles.filterContainer}>
+          <View style={styles.filterRow}>
+            <View style={styles.filterItem}>
+              <Text style={styles.filterLabel}>Tahun</Text>
+              <TouchableOpacity 
+                style={styles.filterButton}
+                onPress={() => setShowYearPicker(!showYearPicker)}
+              >
+                <Text style={styles.filterButtonText}>{selectedYear}</Text>
+                <Ionicons name="chevron-down" size={16} color="#666" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.filterItem}>
+              <Text style={styles.filterLabel}>Bulan</Text>
+              <TouchableOpacity 
+                style={styles.filterButton}
+                onPress={() => setShowMonthPicker(!showMonthPicker)}
+              >
+                <Text style={styles.filterButtonText}>{getMonthName(selectedMonth)}</Text>
+                <Ionicons name="chevron-down" size={16} color="#666" />
+              </TouchableOpacity>
+            </View>
           </View>
           
-          {currentScore ? (
-            <View style={styles.currentContent}>
-              <View style={styles.scoreContainer}>
-                <Text style={styles.scoreValue}>{currentScore}</Text>
-                <Text style={styles.scoreLabel}>Skor</Text>
-              </View>
-              
-              {performanceLevel && (
-                <View style={styles.levelContainer}>
-                  <View style={[
-                    styles.levelBadge,
-                    { backgroundColor: performanceLevel.color }
-                  ]}>
-                    <Text style={styles.levelText}>{performanceLevel.level}</Text>
-                  </View>
-                </View>
-              )}
+          {/* Year Picker */}
+          {showYearPicker && (
+            <View style={styles.pickerContainer}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {[...Array(5)].map((_, idx) => {
+                  const year = new Date().getFullYear() - idx;
+                  return (
+                    <TouchableOpacity
+                      key={year}
+                      style={[styles.pickerItem, selectedYear === year && styles.pickerItemActive]}
+                      onPress={() => {
+                        setSelectedYear(year);
+                        setShowYearPicker(false);
+                      }}
+                    >
+                      <Text style={[styles.pickerItemText, selectedYear === year && styles.pickerItemTextActive]}>
+                        {year}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
             </View>
-          ) : (
-            <View style={styles.noDataContainer}>
-              <Ionicons name="document-outline" size={48} color="#ccc" />
-              <Text style={styles.noDataText}>
-                Belum ada data {selectedTab === 'kpi' ? 'KPI' : 'Rating'} untuk tahun ini
-              </Text>
+          )}
+          
+          {/* Month Picker */}
+          {showMonthPicker && (
+            <View style={styles.pickerContainer}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {[...Array(12)].map((_, idx) => {
+                  const month = idx + 1;
+                  return (
+                    <TouchableOpacity
+                      key={month}
+                      style={[styles.pickerItem, selectedMonth === month && styles.pickerItemActive]}
+                      onPress={() => {
+                        setSelectedMonth(month);
+                        setShowMonthPicker(false);
+                      }}
+                    >
+                      <Text style={[styles.pickerItemText, selectedMonth === month && styles.pickerItemTextActive]}>
+                        {getMonthName(month)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
             </View>
           )}
         </View>
+      )}
+
+      <View style={styles.content}>
+        {viewMode === 'yearly' ? (
+          <View style={styles.currentCard}>
+            <View style={styles.currentHeader}>
+              <Text style={styles.currentTitle}>KPI Tahun Ini</Text>
+              <Text style={styles.currentYear}>{new Date().getFullYear()}</Text>
+            </View>
+            
+            {currentScore ? (
+              <View style={styles.currentContent}>
+                <View style={styles.scoreContainer}>
+                  <Text style={styles.scoreValue}>{formatScore(currentScore)}</Text>
+                  <Text style={styles.scoreLabel}>Skor</Text>
+                </View>
+                
+                {performanceLevel && (
+                  <View style={styles.levelContainer}>
+                    <View style={[
+                      styles.levelBadge,
+                      { backgroundColor: performanceLevel.color }
+                    ]}>
+                      <Text style={styles.levelText}>{performanceLevel.level}</Text>
+                    </View>
+                  </View>
+                )}
+              </View>
+            ) : (
+              <View style={styles.noDataContainer}>
+                <Ionicons name="document-outline" size={48} color="#ccc" />
+                <Text style={styles.noDataText}>
+                  Belum ada data KPI untuk tahun ini
+                </Text>
+              </View>
+            )}
+          </View>
+        ) : (
+          /* Monthly KPI Card */
+          <View style={styles.currentCard}>
+            <View style={styles.currentHeader}>
+              <Text style={styles.currentTitle}>KPI Bulanan</Text>
+              <Text style={styles.currentYear}>{getMonthName(selectedMonth)} {selectedYear}</Text>
+            </View>
+            
+            {getFilteredMonthlyKpi().map((monthData, index) => {
+              const performanceLvl = getPerformanceLevel(monthData.kpiFinal);
+              return (
+                <View key={index}>
+                  <View style={styles.currentContent}>
+                    <View style={styles.scoreContainer}>
+                      <Text style={styles.scoreValue}>{formatScore(monthData.kpiFinal)}</Text>
+                      <Text style={styles.scoreLabel}>KPI Final</Text>
+                    </View>
+                    
+                    <View style={styles.levelContainer}>
+                      <View style={[
+                        styles.levelBadge,
+                        { backgroundColor: performanceLvl.color }
+                      ]}>
+                        <Text style={styles.levelText}>{performanceLvl.level}</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Monthly Breakdown */}
+                  <View style={styles.breakdownContainer}>
+                    <Text style={styles.breakdownTitle}>Breakdown Komponen</Text>
+                    
+                    <View style={styles.breakdownCard}>
+                      <View style={styles.breakdownItem}>
+                        <View style={styles.breakdownIconContainer}>
+                          <Ionicons name="calendar-outline" size={20} color="#667eea" />
+                        </View>
+                        <View style={styles.breakdownContent}>
+                          <Text style={styles.breakdownLabel}>Presensi</Text>
+                          <View style={styles.breakdownValueContainer}>
+                            <Text style={styles.breakdownScore}>
+                              {formatScore(typeof monthData.scorePresensi === 'string' 
+                                ? parseFloat(monthData.scorePresensi) 
+                                : monthData.scorePresensi)}
+                            </Text>
+                            <Text style={styles.breakdownBobot}>Bobot: {monthData.bobotPresensi}%</Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      <View style={styles.breakdownDivider} />
+
+                      <View style={styles.breakdownItem}>
+                        <View style={styles.breakdownIconContainer}>
+                          <Ionicons name="school-outline" size={20} color="#667eea" />
+                        </View>
+                        <View style={styles.breakdownContent}>
+                          <Text style={styles.breakdownLabel}>Pelatihan</Text>
+                          <View style={styles.breakdownValueContainer}>
+                            <Text style={styles.breakdownScore}>
+                              {formatScore(monthData.scorePelatihan)}
+                            </Text>
+                            <Text style={styles.breakdownBobot}>Bobot: {monthData.bobotPelatihan}%</Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      <View style={styles.breakdownDivider} />
+
+                      <View style={styles.breakdownItem}>
+                        <View style={styles.breakdownIconContainer}>
+                          <Ionicons name="star-outline" size={20} color="#667eea" />
+                        </View>
+                        <View style={styles.breakdownContent}>
+                          <Text style={styles.breakdownLabel}>Indikator Lain</Text>
+                          <View style={styles.breakdownValueContainer}>
+                            <Text style={styles.breakdownScore}>
+                              {formatScore(monthData.kpiIndikatorLain)}
+                            </Text>
+                            <Text style={styles.breakdownBobot}>Rata-rata</Text>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
+            
+            {getFilteredMonthlyKpi().length === 0 && (
+              <View style={styles.noDataContainer}>
+                <Ionicons name="document-outline" size={48} color="#ccc" />
+                <Text style={styles.noDataText}>
+                  Belum ada data KPI untuk {getMonthName(selectedMonth)} {selectedYear}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Chart Section */}
         <View style={styles.chartCard}>
           <Text style={styles.chartTitle}>
-            Riwayat {selectedTab === 'kpi' ? 'KPI' : 'Rating'}
+            {viewMode === 'yearly' ? 'Riwayat KPI Tahunan' : `Trend KPI Bulanan ${selectedYear}`}
           </Text>
           
-          {chartData.datasets[0].data.length > 0 && chartData.datasets[0].data[0] !== 0 ? (
+          {viewMode === 'yearly' && chartData.datasets[0].data.length > 0 && chartData.datasets[0].data[0] !== 0 ? (
             <View style={styles.chartContainer}>
               <LineChart
                 data={chartData}
+                width={screenWidth - 80}
+                height={220}
+                chartConfig={{
+                  backgroundColor: '#ffffff',
+                  backgroundGradientFrom: '#ffffff',
+                  backgroundGradientTo: '#ffffff',
+                  decimalPlaces: 1,
+                  color: (opacity = 1) => `rgba(102, 126, 234, ${opacity})`,
+                  labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                  style: {
+                    borderRadius: 16,
+                  },
+                  propsForDots: {
+                    r: '6',
+                    strokeWidth: '2',
+                    stroke: '#667eea',
+                  },
+                }}
+                bezier
+                style={styles.chart}
+              />
+            </View>
+          ) : viewMode === 'monthly' && getMonthlyChartData().datasets[0].data.length > 0 && getMonthlyChartData().datasets[0].data[0] !== 0 ? (
+            <View style={styles.chartContainer}>
+              <LineChart
+                data={getMonthlyChartData()}
                 width={screenWidth - 80}
                 height={220}
                 chartConfig={{
@@ -277,10 +515,10 @@ export default function PerformanceScreen() {
         </View>
 
         {/* Historical Data */}
-        {(selectedTab === 'kpi' ? currentData.allKPI : currentData.allRating).length > 0 && (
+        {currentData.allKPI.length > 0 && (
           <View style={styles.historyCard}>
             <Text style={styles.historyTitle}>Riwayat Lengkap</Text>
-            {(selectedTab === 'kpi' ? currentData.allKPI : currentData.allRating).map((item, index) => (
+            {currentData.allKPI.map((item, index) => (
               <View key={index} style={styles.historyItem}>
                 <View style={styles.historyInfo}>
                   <Text style={styles.historyYear}>{item.year}</Text>
@@ -289,7 +527,7 @@ export default function PerformanceScreen() {
                   )}
                 </View>
                 <View style={styles.historyScore}>
-                  <Text style={styles.historyScoreValue}>{item.score}</Text>
+                  <Text style={styles.historyScoreValue}>{formatScore(item.score)}</Text>
                   <View style={[
                     styles.historyScoreBar,
                     { 
@@ -313,9 +551,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   header: {
-    paddingTop: 50,
-    paddingBottom: 30,
-    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 40,
+    paddingHorizontal: 24,
     alignItems: 'center',
   },
   headerContent: {
@@ -323,60 +561,29 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     color: 'white',
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: 'bold',
-    marginBottom: 5,
+    marginBottom: 8,
+    letterSpacing: 0.5,
   },
   headerSubtitle: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 16,
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: 'white',
-    marginHorizontal: 20,
-    marginTop: -15,
-    borderRadius: 12,
-    padding: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  tab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  tabActive: {
-    backgroundColor: '#667eea',
-  },
-  tabText: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
-    marginLeft: 6,
-  },
-  tabTextActive: {
-    color: 'white',
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 15,
   },
   content: {
     padding: 20,
+    paddingBottom: 40,
   },
   currentCard: {
     backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 20,
+    borderRadius: 16,
+    padding: 24,
     marginBottom: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
   },
   currentHeader: {
     flexDirection: 'row',
@@ -398,32 +605,42 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingVertical: 8,
   },
   scoreContainer: {
     alignItems: 'center',
+    flex: 1,
   },
   scoreValue: {
-    fontSize: 48,
+    fontSize: 56,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#667eea',
+    letterSpacing: -1,
   },
   scoreLabel: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 5,
+    fontSize: 13,
+    color: '#999',
+    marginTop: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   levelContainer: {
     alignItems: 'center',
+    flex: 1,
   },
   levelBadge: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 24,
+    minWidth: 100,
+    alignItems: 'center',
   },
   levelText: {
     color: 'white',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 'bold',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   noDataContainer: {
     alignItems: 'center',
@@ -437,20 +654,21 @@ const styles = StyleSheet.create({
   },
   chartCard: {
     backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 20,
+    borderRadius: 16,
+    padding: 24,
     marginBottom: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
   },
   chartTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 20,
+    letterSpacing: 0.3,
   },
   chartContainer: {
     alignItems: 'center',
@@ -469,57 +687,62 @@ const styles = StyleSheet.create({
   },
   tipsCard: {
     backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 20,
+    borderRadius: 16,
+    padding: 24,
     marginBottom: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
   },
   tipsTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 15,
+    marginBottom: 18,
+    letterSpacing: 0.3,
   },
   tipsList: {
-    gap: 12,
+    gap: 14,
   },
   tipItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 2,
   },
   tipText: {
     fontSize: 14,
     color: '#666',
     marginLeft: 12,
     flex: 1,
+    lineHeight: 20,
   },
   historyCard: {
     backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 20,
+    borderRadius: 16,
+    padding: 24,
+    marginBottom: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
   },
   historyTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 15,
+    marginBottom: 18,
+    letterSpacing: 0.3,
   },
   historyItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: '#f5f5f5',
   },
   historyInfo: {
     flex: 1,
@@ -548,5 +771,167 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
     width: 60,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'white',
+    marginHorizontal: 20,
+    marginTop: -30,
+    marginBottom: 16,
+    borderRadius: 16,
+    padding: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderRadius: 12,
+  },
+  tabActive: {
+    backgroundColor: '#667eea',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#999',
+  },
+  tabTextActive: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  filterContainer: {
+    backgroundColor: 'white',
+    marginHorizontal: 20,
+    marginBottom: 16,
+    padding: 18,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: 14,
+  },
+  filterItem: {
+    flex: 1,
+  },
+  filterLabel: {
+    fontSize: 11,
+    color: '#999',
+    marginBottom: 8,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f8f9fa',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#e8e8e8',
+  },
+  filterButtonText: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '600',
+  },
+  pickerContainer: {
+    marginTop: 10,
+    paddingVertical: 8,
+  },
+  pickerItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginRight: 8,
+    borderRadius: 8,
+    backgroundColor: '#f5f5f5',
+  },
+  pickerItemActive: {
+    backgroundColor: '#667eea',
+  },
+  pickerItemText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  pickerItemTextActive: {
+    color: 'white',
+  },
+  breakdownContainer: {
+    marginTop: 20,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  breakdownTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 15,
+  },
+  breakdownCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+  },
+  breakdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  breakdownIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  breakdownContent: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  breakdownLabel: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '600',
+  },
+  breakdownValueContainer: {
+    alignItems: 'flex-end',
+  },
+  breakdownScore: {
+    fontSize: 18,
+    color: '#667eea',
+    fontWeight: 'bold',
+  },
+  breakdownBobot: {
+    fontSize: 11,
+    color: '#999',
+    marginTop: 2,
+  },
+  breakdownDivider: {
+    height: 1,
+    backgroundColor: '#e0e0e0',
+    marginVertical: 12,
   },
 });

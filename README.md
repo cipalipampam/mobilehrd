@@ -29,13 +29,6 @@ Aplikasi mobile untuk karyawan yang terintegrasi dengan sistem HRD backend Expre
 - Tips peningkatan kinerja
 - Riwayat lengkap penilaian
 
-### 5. **Notifikasi**
-- Notifikasi pelatihan baru
-- Update KPI dan rating
-- Pengumuman perusahaan
-- Reminder evaluasi kinerja
-- Filter notifikasi (semua/belum dibaca)
-
 ## 🛠 Teknologi
 
 - **Framework**: React Native dengan Expo
@@ -58,7 +51,6 @@ app/
 │   ├── profile.tsx        # Profil karyawan
 │   ├── training.tsx       # Pelatihan
 │   ├── performance.tsx    # Kinerja
-│   ├── notifications.tsx  # Notifikasi
 │   └── _layout.tsx        # Layout tab navigator
 └── _layout.tsx            # Root layout
 ```

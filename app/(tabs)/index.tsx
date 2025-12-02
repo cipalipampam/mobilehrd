@@ -17,6 +17,8 @@ import { router } from 'expo-router';
 export default function DashboardScreen() {
   const { user, logout } = useAuth();
   const [karyawan, setKaryawan] = useState<Karyawan | null>(null);
+  const [upcomingTrainings, setUpcomingTrainings] = useState<any[]>([]);
+  const [izinRequests, setIzinRequests] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -27,8 +29,28 @@ export default function DashboardScreen() {
   const loadDashboardData = async () => {
     try {
       setIsLoading(true);
-      const data = await apiService.getMyProfile();
-      setKaryawan(data);
+      const [profileData, trainingsData, izinData] = await Promise.all([
+        apiService.getMyProfile(),
+        apiService.getMyTrainings().catch(() => []),
+        apiService.getMyIzinRequests().catch(() => [])
+      ]);
+      setKaryawan(profileData);
+      
+      // Filter upcoming trainings (hari ini dan ke depan)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const upcoming = trainingsData.filter((t: any) => {
+        const trainingDate = new Date(t.pelatihan?.tanggal || t.tanggal);
+        trainingDate.setHours(0, 0, 0, 0);
+        return trainingDate >= today;
+      }).slice(0, 3);
+      setUpcomingTrainings(upcoming);
+      
+      // Get recent izin requests (3 terakhir)
+      const recentIzin = izinData
+        .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 3);
+      setIzinRequests(recentIzin);
     } catch (error) {
       console.error('Error loading dashboard:', error);
       Alert.alert('Error', 'Gagal memuat data dashboard');
@@ -60,12 +82,6 @@ export default function DashboardScreen() {
     return karyawan.KPI.find(kpi => kpi.year === currentYear) || karyawan.KPI[karyawan.KPI.length - 1];
   };
 
-  const getCurrentRating = () => {
-    if (!karyawan?.Rating || karyawan.Rating.length === 0) return null;
-    const currentYear = new Date().getFullYear();
-    return karyawan.Rating.find(rating => rating.year === currentYear) || karyawan.Rating[karyawan.Rating.length - 1];
-  };
-
   const getRecentTrainings = () => {
     if (!karyawan?.pelatihanDetail) return [];
     return karyawan.pelatihanDetail
@@ -74,8 +90,12 @@ export default function DashboardScreen() {
   };
 
   const currentKPI = getCurrentKPI();
-  const currentRating = getCurrentRating();
   const recentTrainings = getRecentTrainings();
+
+  // Helper untuk membulatkan score (pembulatan matematika untuk tampilan)
+  const formatScore = (score: number): string => {
+    return Math.round(score).toString();
+  };
 
   return (
     <ScrollView 
@@ -122,16 +142,16 @@ export default function DashboardScreen() {
           <View style={styles.statIcon}>
             <Ionicons name="trophy" size={24} color="#667eea" />
           </View>
-          <Text style={styles.statValue}>{currentKPI?.score || 0}</Text>
+          <Text style={styles.statValue}>{currentKPI?.score ? formatScore(currentKPI.score) : 0}</Text>
           <Text style={styles.statLabel}>KPI Terbaru</Text>
         </View>
 
         <View style={styles.statCard}>
           <View style={styles.statIcon}>
-            <Ionicons name="star" size={24} color="#667eea" />
+            <Ionicons name="school" size={24} color="#667eea" />
           </View>
-          <Text style={styles.statValue}>{currentRating?.score || 0}</Text>
-          <Text style={styles.statLabel}>Rating Terbaru</Text>
+          <Text style={styles.statValue}>{karyawan?.pelatihanDetail?.length || 0}</Text>
+          <Text style={styles.statLabel}>Total Pelatihan</Text>
         </View>
       </View>
 
@@ -163,85 +183,88 @@ export default function DashboardScreen() {
         </View>
       </View>
 
-      {/* Today's Schedule */}
+      {/* Upcoming Trainings */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Jadwal Hari Ini</Text>
-        <View style={styles.scheduleCard}>
-          <View style={styles.scheduleItem}>
-            <View style={styles.scheduleTime}>
-              <Text style={styles.scheduleTimeText}>09:00</Text>
-            </View>
-            <View style={styles.scheduleContent}>
-              <Text style={styles.scheduleTitle}>Daily Standup Meeting</Text>
-              <Text style={styles.scheduleLocation}>Meeting Room A</Text>
-            </View>
-            <View style={styles.scheduleStatus}>
-              <Ionicons name="time" size={16} color="#FF9800" />
-            </View>
+        <Text style={styles.sectionTitle}>Pelatihan Mendatang</Text>
+        {upcomingTrainings.length > 0 ? (
+          <View style={styles.scheduleCard}>
+            {upcomingTrainings.map((training, index) => {
+              const trainingInfo = training.pelatihan || training;
+              const status = training.status || 'INVITED';
+              const statusColor = status === 'CONFIRMED' ? '#4CAF50' : status === 'DECLINED' ? '#F44336' : '#FF9800';
+              const statusIcon = status === 'CONFIRMED' ? 'checkmark-circle' : status === 'DECLINED' ? 'close-circle' : 'time';
+              
+              return (
+                <View key={index} style={styles.scheduleItem}>
+                  <View style={styles.scheduleTime}>
+                    <Text style={styles.scheduleTimeText}>
+                      {new Date(trainingInfo.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                    </Text>
+                  </View>
+                  <View style={styles.scheduleContent}>
+                    <Text style={styles.scheduleTitle}>{trainingInfo.nama}</Text>
+                    <Text style={styles.scheduleLocation}>{trainingInfo.lokasi}</Text>
+                  </View>
+                  <View style={styles.scheduleStatus}>
+                    <Ionicons name={statusIcon} size={20} color={statusColor} />
+                  </View>
+                </View>
+              );
+            })}
           </View>
-          
-          <View style={styles.scheduleItem}>
-            <View style={styles.scheduleTime}>
-              <Text style={styles.scheduleTimeText}>14:00</Text>
-            </View>
-            <View style={styles.scheduleContent}>
-              <Text style={styles.scheduleTitle}>Project Review</Text>
-              <Text style={styles.scheduleLocation}>Conference Room</Text>
-            </View>
-            <View style={styles.scheduleStatus}>
-              <Ionicons name="time" size={16} color="#4CAF50" />
-            </View>
+        ) : (
+          <View style={styles.emptyStateCard}>
+            <Ionicons name="calendar-outline" size={48} color="#ccc" />
+            <Text style={styles.emptyText}>Tidak ada pelatihan mendatang</Text>
           </View>
-          
-          <View style={styles.scheduleItem}>
-            <View style={styles.scheduleTime}>
-              <Text style={styles.scheduleTimeText}>16:30</Text>
-            </View>
-            <View style={styles.scheduleContent}>
-              <Text style={styles.scheduleTitle}>Team Building</Text>
-              <Text style={styles.scheduleLocation}>Outdoor Area</Text>
-            </View>
-            <View style={styles.scheduleStatus}>
-              <Ionicons name="time" size={16} color="#2196F3" />
-            </View>
-          </View>
-        </View>
+        )}
       </View>
 
-      {/* Company News */}
+      {/* Izin Status */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Berita Perusahaan</Text>
-        <View style={styles.newsCard}>
-          <View style={styles.newsItem}>
-            <View style={styles.newsIcon}>
-              <Ionicons name="newspaper" size={20} color="#667eea" />
-            </View>
-            <View style={styles.newsContent}>
-              <Text style={styles.newsTitle}>Program Kesehatan Karyawan 2024</Text>
-              <Text style={styles.newsDate}>2 hari yang lalu</Text>
-            </View>
+        <Text style={styles.sectionTitle}>Status Izin Terbaru</Text>
+        {izinRequests.length > 0 ? (
+          <View style={styles.newsCard}>
+            {izinRequests.map((izin, index) => {
+              const statusColor = izin.status === 'APPROVED' ? '#4CAF50' : izin.status === 'REJECTED' ? '#F44336' : '#FF9800';
+              const statusIcon = izin.status === 'APPROVED' ? 'checkmark-circle' : izin.status === 'REJECTED' ? 'close-circle' : 'time';
+              const statusText = izin.status === 'APPROVED' ? 'Disetujui' : izin.status === 'REJECTED' ? 'Ditolak' : 'Pending';
+              const jenisText = izin.jenis === 'SAKIT' ? 'Sakit' : 'Izin';
+              
+              const timeAgo = () => {
+                const now = new Date();
+                const created = new Date(izin.createdAt);
+                const diffMs = now.getTime() - created.getTime();
+                const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                
+                if (diffDays === 0) return 'Hari ini';
+                if (diffDays === 1) return '1 hari yang lalu';
+                if (diffDays < 7) return `${diffDays} hari yang lalu`;
+                if (diffDays < 30) return `${Math.floor(diffDays / 7)} minggu yang lalu`;
+                return `${Math.floor(diffDays / 30)} bulan yang lalu`;
+              };
+              
+              return (
+                <View key={index} style={styles.newsItem}>
+                  <View style={[styles.newsIcon, { backgroundColor: statusColor + '20' }]}>
+                    <Ionicons name={statusIcon} size={20} color={statusColor} />
+                  </View>
+                  <View style={styles.newsContent}>
+                    <Text style={styles.newsTitle}>
+                      {jenisText} - {new Date(izin.tanggal).toLocaleDateString('id-ID')}
+                    </Text>
+                    <Text style={styles.newsDate}>{statusText} • {timeAgo()}</Text>
+                  </View>
+                </View>
+              );
+            })}
           </View>
-          
-          <View style={styles.newsItem}>
-            <View style={styles.newsIcon}>
-              <Ionicons name="trophy" size={20} color="#FF9800" />
-            </View>
-            <View style={styles.newsContent}>
-              <Text style={styles.newsTitle}>Employee of the Month: Januari 2024</Text>
-              <Text style={styles.newsDate}>1 minggu yang lalu</Text>
-            </View>
+        ) : (
+          <View style={styles.emptyStateCard}>
+            <Ionicons name="document-text-outline" size={48} color="#ccc" />
+            <Text style={styles.emptyText}>Belum ada pengajuan izin</Text>
           </View>
-          
-          <View style={styles.newsItem}>
-            <View style={styles.newsIcon}>
-              <Ionicons name="calendar" size={20} color="#4CAF50" />
-            </View>
-            <View style={styles.newsContent}>
-              <Text style={styles.newsTitle}>Jadwal Libur Nasional 2024</Text>
-              <Text style={styles.newsDate}>2 minggu yang lalu</Text>
-            </View>
-          </View>
-        </View>
+        )}
       </View>
 
       {/* Recent Trainings */}
@@ -281,9 +304,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   header: {
-    paddingTop: 50,
-    paddingBottom: 30,
-    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 40,
+    paddingHorizontal: 24,
   },
   headerContent: {
     flexDirection: 'row',
@@ -296,31 +319,33 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
+    marginRight: 16,
   },
   userDetails: {
     flex: 1,
   },
   welcomeText: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 13,
+    letterSpacing: 0.3,
   },
   userName: {
     color: 'white',
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
-    marginTop: 2,
+    marginTop: 4,
+    letterSpacing: 0.5,
   },
   userRole: {
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: 'rgba(255, 255, 255, 0.85)',
     fontSize: 12,
-    marginTop: 2,
+    marginTop: 4,
   },
   logoutButton: {
     padding: 8,
@@ -328,77 +353,82 @@ const styles = StyleSheet.create({
   statsContainer: {
     flexDirection: 'row',
     paddingHorizontal: 20,
-    marginTop: -20,
-    marginBottom: 20,
+    marginTop: -30,
+    marginBottom: 24,
+    gap: 10,
   },
   statCard: {
     flex: 1,
     backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 15,
-    marginHorizontal: 5,
+    borderRadius: 16,
+    padding: 18,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
   },
   statIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f0f0f0',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(102, 126, 234, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   statValue: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#667eea',
     marginBottom: 4,
+    letterSpacing: -0.5,
   },
   statLabel: {
-    fontSize: 12,
-    color: '#666',
+    fontSize: 11,
+    color: '#999',
     textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   section: {
     paddingHorizontal: 20,
-    marginBottom: 20,
+    marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 15,
+    marginBottom: 16,
+    letterSpacing: 0.3,
   },
   infoCard: {
     backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 20,
+    borderRadius: 16,
+    padding: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
   },
   infoHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 16,
   },
   infoTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: 'bold',
     color: '#333',
-    marginLeft: 10,
+    marginLeft: 12,
+    letterSpacing: 0.3,
   },
   infoDescription: {
     fontSize: 14,
     color: '#666',
-    lineHeight: 20,
+    lineHeight: 22,
     marginBottom: 20,
   },
   infoStats: {
@@ -420,20 +450,20 @@ const styles = StyleSheet.create({
   },
   scheduleCard: {
     backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 20,
+    borderRadius: 16,
+    padding: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
   },
   scheduleItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: '#f5f5f5',
   },
   scheduleTime: {
     width: 60,
@@ -464,20 +494,20 @@ const styles = StyleSheet.create({
   },
   newsCard: {
     backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 20,
+    borderRadius: 16,
+    padding: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
   },
   newsItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: '#f5f5f5',
   },
   newsIcon: {
     width: 40,
@@ -552,5 +582,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#999',
     marginTop: 10,
+  },
+  emptyStateCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 40,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
   },
 });
