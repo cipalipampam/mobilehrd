@@ -29,18 +29,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Validate token with backend by getting user info
           const userData = await apiService.getCurrentUser();
           setUser(userData);
-          console.log('✅ Auth restored from stored token');
         } catch (error) {
           // Token is invalid or expired, remove it
-          console.log('❌ Stored token is invalid, clearing...');
           await apiService.logout();
           setUser(null);
         }
-      } else {
-        console.log('ℹ️ No stored token found');
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
+      // Silent error handling - user will just see login screen
     } finally {
       setIsLoading(false);
     }
@@ -51,8 +47,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(true);
       const userData = await apiService.login(email, password);
       setUser(userData);
-    } catch (error) {
-      console.error('Login failed:', error);
+    } catch (error: any) {
+      console.log('🟠 AuthContext: Rethrowing error:', error?.message);
+      // Just re-throw it to be handled by the login screen
       throw error;
     } finally {
       setIsLoading(false);

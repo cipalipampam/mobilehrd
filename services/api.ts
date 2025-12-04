@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 
-const API_BASE_URL = 'http://192.168.0.107:5000/api'; // Your computer's IP address
+const API_BASE_URL = 'http://10.125.173.72:5000/api'; // Your computer's IP address
 
 export interface User {
   username: string;
@@ -148,7 +148,6 @@ class ApiService {
     try {
       return await SecureStore.getItemAsync('auth_token');
     } catch (error) {
-      console.error('Error getting token:', error);
       return null;
     }
   }
@@ -157,7 +156,7 @@ class ApiService {
     try {
       await SecureStore.setItemAsync('auth_token', token);
     } catch (error) {
-      console.error('Error setting token:', error);
+      // Silent error handling
     }
   }
 
@@ -165,7 +164,7 @@ class ApiService {
     try {
       await SecureStore.deleteItemAsync('auth_token');
     } catch (error) {
-      console.error('Error removing token:', error);
+      // Silent error handling
     }
   }
 
@@ -182,42 +181,97 @@ class ApiService {
     };
 
     try {
-      console.log(`🔵 API Request: ${options.method || 'GET'} ${API_BASE_URL}${endpoint}`);
       const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-      console.log(`📊 Response Status: ${response.status} ${response.statusText}`);
       
-      if (response.status === 401) {
-        await this.removeToken();
-        throw new Error('Unauthorized');
+      // Try to parse response body for both success and error
+      let responseData;
+      try {
+        responseData = await response.json();
+      } catch (parseError) {
+        responseData = {};
       }
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error(`❌ Error Response:`, errorData);
-        throw new Error(errorData.message || `HTTP ${response.status}`);
+        // Extract error message from various possible response formats
+        let errorMessage = responseData.message || responseData.error || responseData.msg;
+        
+        // Provide user-friendly error messages based on status code and message
+        if (response.status === 401 || response.status === 404) {
+          // Handle both 401 and 404 as authentication errors for login
+          await this.removeToken();
+          
+          // Check if it's a login-related error
+          if (errorMessage && (
+            errorMessage.toLowerCase().includes('user not found') ||
+            errorMessage.toLowerCase().includes('tidak ditemukan')
+          )) {
+            errorMessage = 'Akun tidak ditemukan. Periksa kembali email Anda.';
+          } else if (errorMessage && (
+            errorMessage.toLowerCase().includes('password') ||
+            errorMessage.toLowerCase().includes('invalid')
+          )) {
+            errorMessage = 'Password salah. Silakan coba lagi.';
+          } else if (response.status === 401) {
+            errorMessage = 'Email atau password salah. Silakan coba lagi.';
+          } else if (response.status === 404 && endpoint.includes('login')) {
+            errorMessage = 'Email atau password salah. Silakan coba lagi.';
+          } else {
+            errorMessage = errorMessage || 'Data tidak ditemukan';
+          }
+        } else if (response.status === 400) {
+          if (!errorMessage) errorMessage = 'Data yang dikirim tidak valid';
+        } else if (response.status === 403) {
+          if (!errorMessage) errorMessage = 'Akses ditolak';
+        } else if (response.status >= 500) {
+          errorMessage = 'Terjadi kesalahan pada server. Silakan coba lagi nanti.';
+        } else if (!errorMessage) {
+          errorMessage = `Terjadi kesalahan (HTTP ${response.status})`;
+        }
+        
+        const error = new Error(errorMessage);
+        (error as any).status = response.status;
+        (error as any).data = responseData;
+        console.log('🔴 Throwing Error:', errorMessage);
+        throw error;
       }
 
-      const data = await response.json();
-      console.log(`✅ Response Success:`, data);
-      return data;
-    } catch (error) {
-      console.error('❌ API request failed:', error);
+      return responseData;
+    } catch (error: any) {
+      // Re-throw if it's already a formatted error from above
+      if (error.message && error.status) {
+        throw error;
+      }
+      
+      // Handle network errors
+      if (error.message === 'Network request failed' || error.name === 'TypeError' || !error.message) {
+        throw new Error('Tidak dapat terhubung ke server. Periksa koneksi internet Anda.');
+      }
+      
       throw error;
     }
   }
 
   // Auth methods
   async login(email: string, password: string): Promise<User> {
-    const response = await this.makeRequest('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
+    try {
+      console.log('🟢 API Service: Starting login request...');
+      const response = await this.makeRequest('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      });
 
-    if (response.token) {
-      await this.setToken(response.token);
+      console.log('🟢 API Service: Login response received:', response);
+
+      if (response.token) {
+        await this.setToken(response.token);
+        console.log('🟢 API Service: Token saved');
+      }
+
+      return response;
+    } catch (error: any) {
+      console.log('🔴 API Service: Login failed, rethrowing error:', error?.message);
+      throw error;
     }
-
-    return response;
   }
 
   async logout(): Promise<void> {

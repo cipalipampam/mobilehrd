@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -20,23 +19,38 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const { login } = useAuth();
 
-  const handleLogin = async () => {
+  const handleLogin = () => {
+    // Reset error message
+    setErrorMessage('');
+
+    // Validation
     if (!email || !password) {
-      Alert.alert('Error', 'Email dan password harus diisi');
+      setErrorMessage('Email dan password harus diisi');
       return;
     }
 
-    try {
-      setIsLoading(true);
-      await login(email, password);
-      router.replace('/(tabs)');
-    } catch (error) {
-      Alert.alert('Login Gagal', 'Email atau password salah');
-    } finally {
-      setIsLoading(false);
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setErrorMessage('Format email tidak valid');
+      return;
     }
+
+    setIsLoading(true);
+    
+    login(email, password)
+      .then(() => {
+        setIsLoading(false);
+        router.replace('/(tabs)');
+      })
+      .catch((error: any) => {
+        setIsLoading(false);
+        const errorMsg = error?.message || 'Email atau password salah. Silakan coba lagi.';
+        setErrorMessage(errorMsg);
+      });
   };
 
   return (
@@ -58,6 +72,13 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.formContainer}>
+            {errorMessage !== '' && (
+              <View style={styles.errorContainer}>
+                <Ionicons name="alert-circle" size={20} color="#e74c3c" />
+                <Text style={styles.errorText}>{errorMessage}</Text>
+              </View>
+            )}
+
             <View style={styles.inputContainer}>
               <Ionicons name="mail" size={20} color="#666" style={styles.inputIcon} />
               <TextInput
@@ -65,7 +86,10 @@ export default function LoginScreen() {
                 placeholder="Email"
                 placeholderTextColor="#999"
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  if (errorMessage) setErrorMessage('');
+                }}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -79,7 +103,10 @@ export default function LoginScreen() {
                 placeholder="Password"
                 placeholderTextColor="#999"
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  if (errorMessage) setErrorMessage('');
+                }}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -211,5 +238,22 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 14,
     textAlign: 'center',
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fee',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 15,
+    borderLeftWidth: 4,
+    borderLeftColor: '#e74c3c',
+  },
+  errorText: {
+    flex: 1,
+    color: '#c0392b',
+    fontSize: 14,
+    marginLeft: 8,
+    lineHeight: 20,
   },
 });
