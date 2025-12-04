@@ -1,21 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  TextInput,
-  Modal,
-  Image,
   ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
+// import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiService, Karyawan } from '@/services/api';
+import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+
+const API_BASE_URL = 'http://10.10.1.89:5000'; // Same as api.ts
 
 export default function ProfileScreen() {
   const { user } = useAuth();
@@ -41,16 +43,21 @@ export default function ProfileScreen() {
     try {
       setIsLoading(true);
       
-      // Load user info first to get foto_profil
-      const currentUser = await apiService.getCurrentUser();
-      if (currentUser && (currentUser as any).foto_profil) {
-        setPhotoUrl((currentUser as any).foto_profil);
+      // Load profile data (which includes foto_profil from User)
+      const [data, currentUser] = await Promise.all([
+        apiService.getMyProfile(),
+        apiService.getCurrentUser()
+      ]);
+      
+      // Set photo URL from current user data
+      if (currentUser && currentUser.foto_profil) {
+        console.log('✅ Foto profil ditemukan:', currentUser.foto_profil);
+        setPhotoUrl(currentUser.foto_profil);
       } else {
+        console.log('⚠️ Foto profil tidak ditemukan');
         setPhotoUrl(null);
       }
       
-      // Then load karyawan profile
-      const data = await apiService.getMyProfile();
       setKaryawan(data);
       setEditData({
         alamat: data.alamat || '',
@@ -92,14 +99,21 @@ export default function ProfileScreen() {
     try {
       setIsUploadingPhoto(true);
       const updatedUser = await apiService.uploadProfilePhoto(uri);
-      if ((updatedUser as any).foto_profil) {
-        setPhotoUrl((updatedUser as any).foto_profil);
+      console.log('📸 Upload response:', updatedUser);
+      
+      if (updatedUser && updatedUser.foto_profil) {
+        console.log('✅ Setting new photo URL:', updatedUser.foto_profil);
+        setPhotoUrl(updatedUser.foto_profil);
+        Alert.alert('Berhasil', 'Foto profil berhasil diperbarui');
+      } else {
+        console.warn('⚠️ No foto_profil in response');
+        Alert.alert('Peringatan', 'Foto diupload tapi URL tidak diterima');
       }
-      Alert.alert('Berhasil', 'Foto profil berhasil diperbarui');
+      
       // Reload profile to ensure fresh data
       await loadProfileData();
     } catch (error: any) {
-      console.error('Error uploading photo:', error);
+      console.error('❌ Error uploading photo:', error);
       Alert.alert('Error', error.message || 'Gagal upload foto profil');
     } finally {
       setIsUploadingPhoto(false);
@@ -206,10 +220,8 @@ export default function ProfileScreen() {
   return (
     <ScrollView style={styles.container}>
       {/* Header */}
-      <LinearGradient
-        colors={['#667eea', '#764ba2']}
-        style={styles.header}
-      >
+      <View style={styles.header}>
+        <View style={styles.headerWave} />
         <View style={styles.headerContent}>
           <View style={styles.avatarContainer}>
             <TouchableOpacity 
@@ -224,8 +236,17 @@ export default function ProfileScreen() {
                 </View>
               ) : photoUrl ? (
                 <Image 
-                  source={{ uri: `http://10.10.184.147:5000${photoUrl}` }} 
+                  source={{ 
+                    uri: photoUrl.startsWith('http') 
+                      ? photoUrl 
+                      : `${API_BASE_URL}${photoUrl.startsWith('/') ? photoUrl : '/' + photoUrl}` 
+                  }} 
                   style={styles.avatarImage}
+                  onError={(e) => {
+                    console.log('❌ Error loading image:', e.nativeEvent.error);
+                    console.log('❌ Image URL:', photoUrl);
+                  }}
+                  onLoad={() => console.log('✅ Image loaded successfully')}
                 />
               ) : (
                 <View style={styles.avatar}>
@@ -242,7 +263,7 @@ export default function ProfileScreen() {
             {karyawan?.Jabatan?.[0]?.nama} • {karyawan?.Departemen?.[0]?.nama}
           </Text>
         </View>
-      </LinearGradient>
+      </View>
 
       {/* Profile Information */}
       <View style={styles.content}>
@@ -256,7 +277,7 @@ export default function ProfileScreen() {
               <Ionicons 
                 name={isEditing ? "close" : "create-outline"} 
                 size={20} 
-                color="#667eea" 
+                color="#1a1a1a" 
               />
               <Text style={styles.editButtonText}>
                 {isEditing ? 'Batal' : 'Edit'}
@@ -410,7 +431,7 @@ export default function ProfileScreen() {
               onPress={() => setShowChangePasswordModal(true)}
             >
               <View style={styles.settingItemLeft}>
-                <Ionicons name="lock-closed-outline" size={22} color="#667eea" />
+                <Ionicons name="lock-closed-outline" size={22} color="#1a1a1a" />
                 <Text style={styles.settingItemText}>Ubah Password</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#999" />
@@ -527,9 +548,21 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingTop: 60,
-    paddingBottom: 40,
+    paddingBottom: 60,
     paddingHorizontal: 24,
     alignItems: 'center',
+    backgroundColor: '#1a1a1a',
+    position: 'relative',
+  },
+  headerWave: {
+    position: 'absolute',
+    bottom: -1,
+    left: 0,
+    right: 0,
+    height: 50,
+    backgroundColor: '#f5f5f5',
+    borderTopLeftRadius: 50,
+    borderTopRightRadius: 50,
   },
   headerContent: {
     alignItems: 'center',
@@ -553,7 +586,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#667eea',
+    backgroundColor: '#1a1a1a',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -596,7 +629,7 @@ const styles = StyleSheet.create({
   },
   editButtonText: {
     marginLeft: 5,
-    color: '#667eea',
+    color: '#1a1a1a',
     fontSize: 14,
     fontWeight: '500',
   },
@@ -638,7 +671,7 @@ const styles = StyleSheet.create({
     minHeight: 20,
   },
   saveButton: {
-    backgroundColor: '#667eea',
+    backgroundColor: '#1a1a1a',
     borderRadius: 16,
     paddingVertical: 16,
     alignItems: 'center',
@@ -745,7 +778,7 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   buttonPrimary: {
-    backgroundColor: '#667eea',
+    backgroundColor: '#1a1a1a',
   },
   buttonPrimaryText: {
     fontSize: 16,

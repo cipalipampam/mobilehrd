@@ -1,20 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
   Alert,
   Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+// import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '@/contexts/AuthContext';
+import { apiService, Karyawan, Pelatihan, PelatihanInfo } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { useAuth } from '@/contexts/AuthContext';
-import { apiService, Karyawan, Pelatihan, PelatihanInfo, TrainingStatus } from '@/services/api';
 
 export default function TrainingScreen() {
   const { user } = useAuth();
@@ -102,36 +102,46 @@ export default function TrainingScreen() {
       Alert.alert('Download', 'Mengunduh sertifikat...');
       
       const token = await apiService.getToken();
-      const fileUri = `${FileSystem.documentDirectory}Sertifikat_${pelatihanNama.replace(/\s/g, '_')}.pdf`;
+      const fileName = `Sertifikat_${pelatihanNama.replace(/\s/g, '_')}.pdf`;
       
-      const downloadResult = await FileSystem.downloadAsync(
+      // Create file in cache directory using new API
+      const file = new FileSystem.File(FileSystem.Paths.cache, fileName);
+      
+      // Download using fetch and write to file
+      const response = await fetch(
         `http://10.10.184.147:5000/api/pelatihan/${pelatihanId}/certificate`,
-        fileUri,
         {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         }
       );
-
-      if (downloadResult.status === 200) {
-        Alert.alert(
-          'Berhasil',
-          'Sertifikat berhasil diunduh!',
-          [
-            {
-              text: 'Buka',
-              onPress: async () => {
-                if (await Sharing.isAvailableAsync()) {
-                  await Sharing.shareAsync(downloadResult.uri);
-                }
-              },
-            },
-            { text: 'OK' },
-          ]
-        );
+      
+      if (!response.ok) {
+        throw new Error('Gagal mengunduh sertifikat');
+      }
+      
+      // Write response to file
+      const blob = await response.blob();
+      const arrayBuffer = await blob.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      
+      // Write to file using writable stream
+      const writableStream = file.writableStream();
+      const writer = writableStream.getWriter();
+      await writer.write(uint8Array);
+      await writer.close();
+      
+      // Share the downloaded file
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(file.uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: 'Sertifikat Pelatihan',
+          UTI: 'com.adobe.pdf',
+        });
+        Alert.alert('Berhasil', 'Sertifikat berhasil dibuka!');
       } else {
-        throw new Error('Download gagal');
+        Alert.alert('Berhasil', 'Sertifikat berhasil diunduh!');
       }
     } catch (error: any) {
       console.error('Download error:', error);
@@ -241,10 +251,7 @@ export default function TrainingScreen() {
       }
     >
       {/* Header */}
-      <LinearGradient
-        colors={['#667eea', '#764ba2']}
-        style={styles.header}
-      >
+      <View style={styles.header}>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Pelatihan</Text>
           <Text style={styles.headerSubtitle}>
@@ -254,8 +261,10 @@ export default function TrainingScreen() {
             }
           </Text>
         </View>
-      </LinearGradient>
+      </View>
 
+      {/* Content Wrapper with curved top */}
+      <View style={styles.contentWrapper}>
       {/* Main Tabs */}
       <View style={styles.mainTabsContainer}>
         <TouchableOpacity
@@ -462,16 +471,16 @@ export default function TrainingScreen() {
                 )}
 
                 <View style={styles.trainingActions}>
-                  <TouchableOpacity style={styles.actionButton}>
-                    <Ionicons name="document-text-outline" size={16} color="#667eea" />
+                  {/* <TouchableOpacity style={styles.actionButton}>
+                    <Ionicons name="document-text-outline" size={16} color="#1a1a1a" />
                     <Text style={styles.actionButtonText}>Detail</Text>
-                  </TouchableOpacity>
+                  </TouchableOpacity> */}
                   {myDetail?.hadir && (
                     <TouchableOpacity 
                       style={styles.actionButton}
                       onPress={() => handleDownloadCertificate(pelatihanData.id, pelatihanData.nama)}
                     >
-                      <Ionicons name="download-outline" size={16} color="#667eea" />
+                      <Ionicons name="download-outline" size={16} color="#1a1a1a" />
                       <Text style={styles.actionButtonText}>Sertifikat</Text>
                     </TouchableOpacity>
                   )}
@@ -571,6 +580,8 @@ export default function TrainingScreen() {
           )
         )}
       </View>
+      {/* End Content Wrapper */}
+      </View>
     </ScrollView>
   );
 }
@@ -582,8 +593,28 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingTop: 60,
-    paddingBottom: 40,
+    paddingBottom: 60,
     paddingHorizontal: 24,
+    backgroundColor: '#1a1a1a',
+    position: 'relative',
+  },
+  headerWave: {
+    position: 'absolute',
+    bottom: -1,
+    left: 0,
+    right: 0,
+    height: 50,
+    backgroundColor: '#f5f5f5',
+    borderTopLeftRadius: 50,
+    borderTopRightRadius: 50,
+  },
+  contentWrapper: {
+    flex: 1,
+    backgroundColor: 'white',
+    borderTopLeftRadius: 50,
+    borderTopRightRadius: 50,
+    marginTop: -50,
+    paddingTop: 50,
   },
   headerContent: {
     alignItems: 'center',
@@ -620,7 +651,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   filterTabActive: {
-    backgroundColor: '#667eea',
+    backgroundColor: '#1a1a1a',
   },
   filterTabText: {
     fontSize: 14,
@@ -636,14 +667,14 @@ const styles = StyleSheet.create({
   },
   trainingCard: {
     backgroundColor: 'white',
-    borderRadius: 16,
+    borderRadius: 24,
     padding: 24,
     marginBottom: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
   trainingHeader: {
     flexDirection: 'row',
@@ -821,7 +852,7 @@ const styles = StyleSheet.create({
   actionButtonText: {
     marginLeft: 6,
     fontSize: 14,
-    color: '#667eea',
+    color: '#1a1a1a',
     fontWeight: '500',
   },
   emptyState: {
@@ -862,8 +893,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   mainTabActive: {
-    backgroundColor: '#667eea',
-    shadowColor: '#667eea',
+    backgroundColor: '#1a1a1a',
+    shadowColor: '#1a1a1a',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -883,7 +914,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: '#667eea',
+    backgroundColor: '#1a1a1a',
     gap: 6,
   },
   joinButtonText: {

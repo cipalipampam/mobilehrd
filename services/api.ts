@@ -1,12 +1,13 @@
 import * as SecureStore from 'expo-secure-store';
 
-const API_BASE_URL = 'http://10.125.173.72:5000/api'; // Your computer's IP address
+const API_BASE_URL = 'http://10.10.1.89:5000/api'; // Your computer's IP address
 
 export interface User {
   username: string;
   email: string;
   role: 'KARYAWAN' | 'HR';
   token: string;
+  foto_profil?: string;
 }
 
 export interface Karyawan {
@@ -280,6 +281,7 @@ class ApiService {
 
   async getCurrentUser(): Promise<User> {
     const response = await this.makeRequest('/auth/me');
+    console.log('📸 getCurrentUser response:', JSON.stringify(response.data, null, 2));
     return response.data;
   }
 
@@ -460,6 +462,8 @@ class ApiService {
     const filename = fileUri.split('/').pop() || 'photo.jpg';
     const fileType = filename.split('.').pop()?.toLowerCase();
     
+    console.log('📸 Uploading photo:', { fileUri, filename, fileType });
+    
     formData.append('photo', {
       uri: fileUri,
       type: `image/${fileType === 'png' ? 'png' : 'jpeg'}`,
@@ -475,12 +479,16 @@ class ApiService {
       body: formData,
     });
 
+    console.log('📸 Upload response status:', response.status);
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      console.error('❌ Upload failed:', errorData);
       throw new Error(errorData.message || `HTTP ${response.status}`);
     }
 
     const result = await response.json();
+    console.log('📸 Upload success, result:', JSON.stringify(result, null, 2));
     return result.data;
   }
 

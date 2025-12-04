@@ -1,20 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
   Alert,
   Dimensions,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+// import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiService, Karyawan } from '@/services/api';
-import { LineChart, BarChart } from 'react-native-chart-kit';
+import { Ionicons } from '@expo/vector-icons';
+import { LineChart } from 'react-native-chart-kit';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -84,7 +83,7 @@ export default function PerformanceScreen() {
         labels: ['Tidak ada data'],
         datasets: [{
           data: [0],
-          color: (opacity = 1) => `rgba(102, 126, 234, ${opacity})`,
+          color: (opacity = 1) => `rgba(26, 26, 26, ${opacity})`,
         }]
       };
     }
@@ -96,7 +95,7 @@ export default function PerformanceScreen() {
       labels: labels.length > 6 ? labels.slice(-6) : labels,
       datasets: [{
         data: values.length > 6 ? values.slice(-6) : values,
-        color: (opacity = 1) => `rgba(102, 126, 234, ${opacity})`,
+        color: (opacity = 1) => `rgba(26, 26, 26, ${opacity})`,
         strokeWidth: 2,
       }]
     };
@@ -137,16 +136,16 @@ export default function PerformanceScreen() {
         labels: ['Tidak ada data'],
         datasets: [{
           data: [0],
-          color: (opacity = 1) => `rgba(102, 126, 234, ${opacity})`,
+          color: (opacity = 1) => `rgba(26, 26, 26, ${opacity})`,
         }]
       };
     }
 
     return {
-      labels: yearData.map(item => getMonthName(item.bulan).substring(0, 3)),
+      labels: yearData.map(item => String(getMonthName(item.bulan)).substring(0, 3)),
       datasets: [{
         data: yearData.map(item => item.kpiFinal),
-        color: (opacity = 1) => `rgba(102, 126, 234, ${opacity})`,
+        color: (opacity = 1) => `rgba(26, 26, 26, ${opacity})`,
         strokeWidth: 2,
       }]
     };
@@ -170,18 +169,18 @@ export default function PerformanceScreen() {
       }
     >
       {/* Header */}
-      <LinearGradient
-        colors={['#667eea', '#764ba2']}
-        style={styles.header}
-      >
+      <View style={styles.header}>
+        <View style={styles.headerWave} />
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Kinerja & Penilaian</Text>
           <Text style={styles.headerSubtitle}>
             Pantau perkembangan kinerja Anda
           </Text>
         </View>
-      </LinearGradient>
+      </View>
 
+      {/* Content Wrapper with curved top */}
+      <View style={styles.contentWrapper}>
       {/* View Mode Tabs */}
       <View style={styles.tabContainer}>
         <TouchableOpacity
@@ -350,7 +349,7 @@ export default function PerformanceScreen() {
                     <View style={styles.breakdownCard}>
                       <View style={styles.breakdownItem}>
                         <View style={styles.breakdownIconContainer}>
-                          <Ionicons name="calendar-outline" size={20} color="#667eea" />
+                          <Ionicons name="calendar-outline" size={20} color="#1a1a1a" />
                         </View>
                         <View style={styles.breakdownContent}>
                           <Text style={styles.breakdownLabel}>Presensi</Text>
@@ -369,7 +368,7 @@ export default function PerformanceScreen() {
 
                       <View style={styles.breakdownItem}>
                         <View style={styles.breakdownIconContainer}>
-                          <Ionicons name="school-outline" size={20} color="#667eea" />
+                          <Ionicons name="school-outline" size={20} color="#1a1a1a" />
                         </View>
                         <View style={styles.breakdownContent}>
                           <Text style={styles.breakdownLabel}>Pelatihan</Text>
@@ -386,7 +385,7 @@ export default function PerformanceScreen() {
 
                       <View style={styles.breakdownItem}>
                         <View style={styles.breakdownIconContainer}>
-                          <Ionicons name="star-outline" size={20} color="#667eea" />
+                          <Ionicons name="star-outline" size={20} color="#1a1a1a" />
                         </View>
                         <View style={styles.breakdownContent}>
                           <Text style={styles.breakdownLabel}>Indikator Lain</Text>
@@ -432,7 +431,7 @@ export default function PerformanceScreen() {
                   backgroundGradientFrom: '#ffffff',
                   backgroundGradientTo: '#ffffff',
                   decimalPlaces: 1,
-                  color: (opacity = 1) => `rgba(102, 126, 234, ${opacity})`,
+                  color: (opacity = 1) => `rgba(26, 26, 26, ${opacity})`,
                   labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
                   style: {
                     borderRadius: 16,
@@ -440,7 +439,7 @@ export default function PerformanceScreen() {
                   propsForDots: {
                     r: '6',
                     strokeWidth: '2',
-                    stroke: '#667eea',
+                    stroke: '#1a1a1a',
                   },
                 }}
                 bezier
@@ -458,7 +457,7 @@ export default function PerformanceScreen() {
                   backgroundGradientFrom: '#ffffff',
                   backgroundGradientTo: '#ffffff',
                   decimalPlaces: 1,
-                  color: (opacity = 1) => `rgba(102, 126, 234, ${opacity})`,
+                  color: (opacity = 1) => `rgba(26, 26, 26, ${opacity})`,
                   labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
                   style: {
                     borderRadius: 16,
@@ -466,7 +465,7 @@ export default function PerformanceScreen() {
                   propsForDots: {
                     r: '6',
                     strokeWidth: '2',
-                    stroke: '#667eea',
+                    stroke: '#1a1a1a',
                   },
                 }}
                 bezier
@@ -541,6 +540,8 @@ export default function PerformanceScreen() {
           </View>
         )}
       </View>
+      {/* End Content Wrapper */}
+      </View>
     </ScrollView>
   );
 }
@@ -552,9 +553,29 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingTop: 60,
-    paddingBottom: 40,
+    paddingBottom: 60,
     paddingHorizontal: 24,
     alignItems: 'center',
+    backgroundColor: '#1a1a1a',
+    position: 'relative',
+  },
+  headerWave: {
+    position: 'absolute',
+    bottom: -1,
+    left: 0,
+    right: 0,
+    height: 50,
+    backgroundColor: '#f5f5f5',
+    borderTopLeftRadius: 50,
+    borderTopRightRadius: 50,
+  },
+  contentWrapper: {
+    flex: 1,
+    backgroundColor: 'white',
+    borderTopLeftRadius: 50,
+    borderTopRightRadius: 50,
+    marginTop: -50,
+    paddingTop: 50,
   },
   headerContent: {
     alignItems: 'center',
@@ -576,14 +597,14 @@ const styles = StyleSheet.create({
   },
   currentCard: {
     backgroundColor: 'white',
-    borderRadius: 16,
+    borderRadius: 24,
     padding: 24,
     marginBottom: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
   currentHeader: {
     flexDirection: 'row',
@@ -598,7 +619,7 @@ const styles = StyleSheet.create({
   },
   currentYear: {
     fontSize: 16,
-    color: '#667eea',
+    color: '#1a1a1a',
     fontWeight: '600',
   },
   currentContent: {
@@ -614,7 +635,7 @@ const styles = StyleSheet.create({
   scoreValue: {
     fontSize: 56,
     fontWeight: 'bold',
-    color: '#667eea',
+    color: '#1a1a1a',
     letterSpacing: -1,
   },
   scoreLabel: {
@@ -654,14 +675,14 @@ const styles = StyleSheet.create({
   },
   chartCard: {
     backgroundColor: 'white',
-    borderRadius: 16,
+    borderRadius: 24,
     padding: 24,
     marginBottom: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
   chartTitle: {
     fontSize: 17,
@@ -674,7 +695,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   chart: {
-    borderRadius: 16,
+    borderRadius: 20,
   },
   noChartContainer: {
     alignItems: 'center',
@@ -687,14 +708,14 @@ const styles = StyleSheet.create({
   },
   tipsCard: {
     backgroundColor: 'white',
-    borderRadius: 16,
+    borderRadius: 24,
     padding: 24,
     marginBottom: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
   tipsTitle: {
     fontSize: 17,
@@ -720,14 +741,14 @@ const styles = StyleSheet.create({
   },
   historyCard: {
     backgroundColor: 'white',
-    borderRadius: 16,
+    borderRadius: 24,
     padding: 24,
     marginBottom: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
   historyTitle: {
     fontSize: 17,
@@ -793,8 +814,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   tabActive: {
-    backgroundColor: '#667eea',
-    shadowColor: '#667eea',
+    backgroundColor: '#1a1a1a',
+    shadowColor: '#1a1a1a',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -845,7 +866,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: '#e8e8e8',
+    borderColor: '#1a1a1a',
   },
   filterButtonText: {
     fontSize: 14,
@@ -864,7 +885,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   pickerItemActive: {
-    backgroundColor: '#667eea',
+    backgroundColor: '#1a1a1a',
   },
   pickerItemText: {
     fontSize: 14,
@@ -888,7 +909,7 @@ const styles = StyleSheet.create({
   },
   breakdownCard: {
     backgroundColor: '#f8f9fa',
-    borderRadius: 12,
+    borderRadius: 20,
     padding: 16,
   },
   breakdownItem: {
@@ -900,7 +921,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+    backgroundColor: 'rgba(26, 26, 26, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -921,7 +942,7 @@ const styles = StyleSheet.create({
   },
   breakdownScore: {
     fontSize: 18,
-    color: '#667eea',
+    color: '#1a1a1a',
     fontWeight: 'bold',
   },
   breakdownBobot: {

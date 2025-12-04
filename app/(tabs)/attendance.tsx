@@ -1,25 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
   Alert,
-  RefreshControl,
-  TextInput,
   Modal,
   Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+// import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
-import { apiService, Kehadiran, KehadiranStats, IzinRequest, IzinJenis, IzinStatus } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
+import { apiService, IzinJenis, IzinRequest, IzinStatus, Kehadiran, KehadiranStats } from '../../services/api';
 
 const STATUS_COLORS: Record<string, string> = {
   HADIR: '#10b981',
@@ -412,10 +412,8 @@ export default function AttendanceScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <LinearGradient
-        colors={['#667eea', '#764ba2']}
-        style={styles.header}
-      >
+      <View style={styles.header}>
+        <View style={styles.headerWave} />
         <Text style={styles.headerTitle}>Kehadiran</Text>
         <Text style={styles.headerSubtitle}>
           {currentTime.toLocaleDateString('id-ID', {
@@ -425,7 +423,7 @@ export default function AttendanceScreen() {
             year: 'numeric',
           })}
         </Text>
-      </LinearGradient>
+      </View>
 
       {/* Tab Selector */}
       <View style={styles.tabContainer}>
@@ -704,7 +702,7 @@ export default function AttendanceScreen() {
                     <Text style={styles.izinKeterangan}>{request.keterangan}</Text>
                     {request.fileUrl && (
                       <View style={styles.izinFileInfo}>
-                        <Ionicons name="document-attach" size={16} color="#667eea" />
+                        <Ionicons name="document-attach" size={16} color="#1a1a1a" />
                         <Text style={styles.izinFileText}>Lampiran tersedia</Text>
                       </View>
                     )}
@@ -804,7 +802,7 @@ export default function AttendanceScreen() {
               {izinFile ? (
                 <View style={styles.filePreview}>
                   <View style={styles.filePreviewInfo}>
-                    <Ionicons name="document-attach" size={24} color="#667eea" />
+                    <Ionicons name="document-attach" size={24} color="#1a1a1a" />
                     <Text style={styles.fileName}>{izinFile.name}</Text>
                   </View>
                   <TouchableOpacity onPress={() => setIzinFile(null)}>
@@ -814,11 +812,11 @@ export default function AttendanceScreen() {
               ) : (
                 <View style={styles.fileButtons}>
                   <TouchableOpacity style={styles.fileButton} onPress={handlePickImage}>
-                    <Ionicons name="image-outline" size={20} color="#667eea" />
+                    <Ionicons name="image-outline" size={20} color="#1a1a1a" />
                     <Text style={styles.fileButtonText}>Pilih Foto</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.fileButton} onPress={handlePickDocument}>
-                    <Ionicons name="document-outline" size={20} color="#667eea" />
+                    <Ionicons name="document-outline" size={20} color="#1a1a1a" />
                     <Text style={styles.fileButtonText}>Pilih Dokumen</Text>
                   </TouchableOpacity>
                 </View>
@@ -859,9 +857,21 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingTop: 60,
-    paddingBottom: 40,
+    paddingBottom: 60,
     paddingHorizontal: 24,
     alignItems: 'center',
+    backgroundColor: '#1a1a1a',
+    position: 'relative',
+  },
+  headerWave: {
+    position: 'absolute',
+    bottom: -1,
+    left: 0,
+    right: 0,
+    height: 50,
+    backgroundColor: '#f5f5f5',
+    borderTopLeftRadius: 50,
+    borderTopRightRadius: 50,
   },
   headerTitle: {
     fontSize: 26,
@@ -1108,7 +1118,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   tabActive: {
-    backgroundColor: '#667eea',
+    backgroundColor: '#1a1a1a',
   },
   tabText: {
     fontSize: 14,
@@ -1135,7 +1145,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
   },
   izinFilterTabActive: {
-    backgroundColor: '#667eea',
+    backgroundColor: '#1a1a1a',
   },
   izinFilterText: {
     fontSize: 14,
@@ -1202,7 +1212,7 @@ const styles = StyleSheet.create({
   },
   izinFileText: {
     fontSize: 12,
-    color: '#667eea',
+    color: '#1a1a1a',
   },
   izinTimestamp: {
     fontSize: 12,
@@ -1226,7 +1236,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#667eea',
+    backgroundColor: '#1a1a1a',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -1300,8 +1310,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   radioButtonActive: {
-    backgroundColor: '#667eea',
-    borderColor: '#667eea',
+    backgroundColor: '#1a1a1a',
+    borderColor: '#1a1a1a',
   },
   radioText: {
     fontSize: 14,
@@ -1324,11 +1334,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#667eea',
+    borderColor: '#1a1a1a',
   },
   fileButtonText: {
     fontSize: 14,
-    color: '#667eea',
+    color: '#1a1a1a',
     fontWeight: '500',
   },
   filePreview: {
@@ -1372,7 +1382,7 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   buttonPrimary: {
-    backgroundColor: '#667eea',
+    backgroundColor: '#1a1a1a',
   },
   buttonPrimaryText: {
     fontSize: 16,

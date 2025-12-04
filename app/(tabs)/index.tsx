@@ -1,18 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
+  ActivityIndicator,
   Alert,
+  Image,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+// import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiService, Karyawan } from '@/services/api';
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
+
+const API_BASE_URL = 'http://10.10.1.89:5000';
 
 export default function DashboardScreen() {
   const { user, logout } = useAuth();
@@ -21,19 +26,59 @@ export default function DashboardScreen() {
   const [izinRequests, setIzinRequests] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoLoading, setPhotoLoading] = useState(false);
 
+  // Load data only once on mount
   useEffect(() => {
     loadDashboardData();
   }, []);
 
+  // Refresh photo when screen comes into focus (but not on initial mount)
+  useFocusEffect(
+    React.useCallback(() => {
+      // Only reload photo, not all dashboard data
+      if (!isLoading) {
+        loadUserPhoto();
+      }
+    }, [isLoading])
+  );
+
+  const loadUserPhoto = async () => {
+    try {
+      setPhotoLoading(true);
+      const currentUser = await apiService.getCurrentUser();
+      
+      if (currentUser && currentUser.foto_profil) {
+        setPhotoUrl(currentUser.foto_profil);
+      } else {
+        setPhotoUrl(null);
+      }
+    } catch (photoError) {
+      console.error('❌ Dashboard: Error loading photo:', photoError);
+      setPhotoUrl(null);
+    } finally {
+      setPhotoLoading(false);
+    }
+  };
+
   const loadDashboardData = async () => {
     try {
       setIsLoading(true);
-      const [profileData, trainingsData, izinData] = await Promise.all([
+      
+      // Load all data in parallel including photo
+      const [currentUser, profileData, trainingsData, izinData] = await Promise.all([
+        apiService.getCurrentUser(),
         apiService.getMyProfile(),
         apiService.getMyTrainings().catch(() => []),
         apiService.getMyIzinRequests().catch(() => [])
       ]);
+      
+      // Set photo from currentUser
+      if (currentUser && currentUser.foto_profil) {
+        setPhotoUrl(currentUser.foto_profil);
+      }
+      
       setKaryawan(profileData);
       
       // Filter upcoming trainings (hari ini dan ke depan)
@@ -105,15 +150,39 @@ export default function DashboardScreen() {
       }
     >
       {/* Header */}
-      <LinearGradient
-        colors={['#667eea', '#764ba2']}
-        style={styles.header}
-      >
+      <View style={styles.header}>
         <View style={styles.headerContent}>
           <View style={styles.userInfo}>
-            <View style={styles.avatar}>
-              <Ionicons name="person" size={30} color="white" />
-            </View>
+            <TouchableOpacity 
+              style={styles.avatarContainer}
+              onPress={() => router.push('/(tabs)/profile')}
+            >
+              {photoLoading ? (
+                <View style={styles.avatar}>
+                  <ActivityIndicator size="small" color="white" />
+                </View>
+              ) : photoUrl ? (
+                <Image 
+                  source={{ 
+                    uri: photoUrl.startsWith('http') 
+                      ? photoUrl 
+                      : `${API_BASE_URL}${photoUrl.startsWith('/') ? photoUrl : '/' + photoUrl}` 
+                  }} 
+                  style={styles.avatarImage}
+                  onLoadStart={() => setPhotoLoading(true)}
+                  onLoadEnd={() => setPhotoLoading(false)}
+                  onError={(e) => {
+                    console.log('❌ Dashboard: Error loading image');
+                    setPhotoLoading(false);
+                    setPhotoUrl(null);
+                  }}
+                />
+              ) : (
+                <View style={styles.avatar}>
+                  <Ionicons name="person" size={30} color="white" />
+                </View>
+              )}
+            </TouchableOpacity>
             <View style={styles.userDetails}>
               <Text style={styles.welcomeText}>Selamat datang,</Text>
               <Text style={styles.userName}>{karyawan?.nama || user?.username}</Text>
@@ -126,41 +195,57 @@ export default function DashboardScreen() {
             <Ionicons name="log-out-outline" size={24} color="white" />
           </TouchableOpacity>
         </View>
-      </LinearGradient>
+      </View>
 
-      {/* Stats Cards */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <View style={styles.statIcon}>
-            <Ionicons name="time" size={24} color="#667eea" />
+      {/* Content Wrapper with curved top */}
+      <View style={styles.contentWrapper}>
+        {/* Stats Cards - Redesigned */}
+        <View style={styles.statsContainer}>
+        {/* Large Featured Card - KPI */}
+        <View style={styles.featuredCard}>
+          <View style={styles.featuredCardHeader}>
+            <View style={styles.featuredIconWrapper}>
+              <Ionicons name="trophy" size={28} color="#FFD700" />
+            </View>
+            <View style={styles.decorativeCircle1} />
+            <View style={styles.decorativeCircle2} />
           </View>
-          <Text style={styles.statValue}>{karyawan?.masaKerja || 0}</Text>
-          <Text style={styles.statLabel}>Tahun Bekerja</Text>
+          <Text style={styles.featuredLabel}>KPI Score</Text>
+          <Text style={styles.featuredValue}>{currentKPI?.score ? formatScore(currentKPI.score) : 0}</Text>
+          <View style={styles.featuredProgressBar}>
+            <View style={[styles.featuredProgress, { width: `${currentKPI?.score || 0}%` }]} />
+          </View>
+          <Text style={styles.featuredSubtext}>Performance Tahun Ini</Text>
         </View>
 
-        <View style={styles.statCard}>
-          <View style={styles.statIcon}>
-            <Ionicons name="trophy" size={24} color="#667eea" />
+        {/* Two Small Cards */}
+        <View style={styles.smallCardsRow}>
+          <View style={styles.smallCard}>
+            <View style={styles.smallCardIconWrapper}>
+              <Ionicons name="time-outline" size={24} color="#1a1a1a" />
+            </View>
+            <Text style={styles.smallCardValue}>{karyawan?.masaKerja || 0}</Text>
+            <Text style={styles.smallCardLabel}>Tahun</Text>
+            <Text style={styles.smallCardSubtext}>Masa Kerja</Text>
           </View>
-          <Text style={styles.statValue}>{currentKPI?.score ? formatScore(currentKPI.score) : 0}</Text>
-          <Text style={styles.statLabel}>KPI Terbaru</Text>
-        </View>
 
-        <View style={styles.statCard}>
-          <View style={styles.statIcon}>
-            <Ionicons name="school" size={24} color="#667eea" />
+          <View style={styles.smallCard}>
+            <View style={styles.smallCardIconWrapper}>
+              <Ionicons name="school-outline" size={24} color="#1a1a1a" />
+            </View>
+            <Text style={styles.smallCardValue}>{karyawan?.pelatihanDetail?.length || 0}</Text>
+            <Text style={styles.smallCardLabel}>Training</Text>
+            <Text style={styles.smallCardSubtext}>Completed</Text>
           </View>
-          <Text style={styles.statValue}>{karyawan?.pelatihanDetail?.length || 0}</Text>
-          <Text style={styles.statLabel}>Total Pelatihan</Text>
         </View>
       </View>
 
       {/* Company Information */}
-      <View style={styles.section}>
+      {/* <View style={styles.section}>
         <Text style={styles.sectionTitle}>Informasi Perusahaan</Text>
         <View style={styles.infoCard}>
           <View style={styles.infoHeader}>
-            <Ionicons name="business" size={24} color="#667eea" />
+            <Ionicons name="business" size={24} color="#1a1a1a" />
             <Text style={styles.infoTitle}>PT. Mobile HRD Indonesia</Text>
           </View>
           <Text style={styles.infoDescription}>
@@ -181,7 +266,7 @@ export default function DashboardScreen() {
             </View>
           </View>
         </View>
-      </View>
+      </View> */}
 
       {/* Upcoming Trainings */}
       <View style={styles.section}>
@@ -294,6 +379,8 @@ export default function DashboardScreen() {
           </View>
         )}
       </View>
+      {/* End Content Wrapper */}
+      </View>
     </ScrollView>
   );
 }
@@ -305,8 +392,28 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingTop: 60,
-    paddingBottom: 40,
+    paddingBottom: 60,
     paddingHorizontal: 24,
+    backgroundColor: '#1a1a1a',
+    position: 'relative',
+  },
+  headerWave: {
+    position: 'absolute',
+    bottom: -1,
+    left: 0,
+    right: 0,
+    height: 50,
+    backgroundColor: '#f5f5f5',
+    borderTopLeftRadius: 50,
+    borderTopRightRadius: 50,
+  },
+  contentWrapper: {
+    flex: 1,
+    backgroundColor: 'white',
+    borderTopLeftRadius: 50,
+    borderTopRightRadius: 50,
+    marginTop: -50,
+    paddingTop: 50,
   },
   headerContent: {
     flexDirection: 'row',
@@ -318,6 +425,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
+  avatarContainer: {
+    marginRight: 16,
+  },
   avatar: {
     width: 56,
     height: 56,
@@ -325,7 +435,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+  },
+  avatarImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   userDetails: {
     flex: 1,
@@ -351,46 +467,132 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   statsContainer: {
-    flexDirection: 'row',
     paddingHorizontal: 20,
-    marginTop: -30,
-    marginBottom: 24,
-    gap: 10,
+    marginTop: -40,
+    marginBottom: 20,
+    gap: 16,
   },
-  statCard: {
-    flex: 1,
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 18,
-    alignItems: 'center',
+  featuredCard: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: 24,
+    padding: 28,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+    position: 'relative',
+    overflow: 'hidden',
   },
-  statIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+  featuredCardHeader: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 120,
+    height: 120,
+  },
+  featuredIconWrapper: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 215, 0, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 10,
+    zIndex: 3,
   },
-  statValue: {
-    fontSize: 22,
+  decorativeCircle1: {
+    position: 'absolute',
+    top: -30,
+    right: -30,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  decorativeCircle2: {
+    position: 'absolute',
+    top: 10,
+    right: -50,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+  },
+  featuredLabel: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  featuredValue: {
+    fontSize: 56,
     fontWeight: 'bold',
-    color: '#667eea',
-    marginBottom: 4,
-    letterSpacing: -0.5,
+    color: 'white',
+    marginBottom: 16,
+    letterSpacing: -2,
   },
-  statLabel: {
+  featuredProgressBar: {
+    height: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  featuredProgress: {
+    height: '100%',
+    backgroundColor: '#FFD700',
+    borderRadius: 3,
+  },
+  featuredSubtext: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.6)',
+    letterSpacing: 0.3,
+  },
+  smallCardsRow: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  smallCard: {
+    flex: 1,
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    position: 'relative',
+  },
+  smallCardIconWrapper: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  smallCardValue: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#1a1a1a',
+    marginBottom: 4,
+    letterSpacing: -1,
+  },
+  smallCardLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 2,
+    fontWeight: '600',
+  },
+  smallCardSubtext: {
     fontSize: 11,
     color: '#999',
-    textAlign: 'center',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
   section: {
     paddingHorizontal: 20,
@@ -405,13 +607,13 @@ const styles = StyleSheet.create({
   },
   infoCard: {
     backgroundColor: 'white',
-    borderRadius: 16,
+    borderRadius: 24,
     padding: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
   infoHeader: {
     flexDirection: 'row',
@@ -441,7 +643,7 @@ const styles = StyleSheet.create({
   infoStatValue: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#667eea',
+    color: '#1a1a1a',
   },
   infoStatLabel: {
     fontSize: 12,
@@ -450,57 +652,59 @@ const styles = StyleSheet.create({
   },
   scheduleCard: {
     backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 24,
+    borderRadius: 20,
+    padding: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
   scheduleItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#f5f5f5',
   },
   scheduleTime: {
     width: 60,
     alignItems: 'center',
+    marginRight: 16,
   },
   scheduleTimeText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#667eea',
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    textAlign: 'center',
   },
   scheduleContent: {
     flex: 1,
-    marginLeft: 15,
+    marginRight: 12,
   },
   scheduleTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#333',
     marginBottom: 4,
   },
   scheduleLocation: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#666',
   },
   scheduleStatus: {
-    width: 30,
+    width: 32,
     alignItems: 'center',
   },
   newsCard: {
     backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 24,
+    borderRadius: 20,
+    padding: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
   newsItem: {
     flexDirection: 'row',
@@ -510,13 +714,13 @@ const styles = StyleSheet.create({
     borderBottomColor: '#f5f5f5',
   },
   newsIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#f8f9fa',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
+    marginRight: 14,
   },
   newsContent: {
     flex: 1,
@@ -533,29 +737,29 @@ const styles = StyleSheet.create({
   },
   trainingCard: {
     backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 15,
-    marginBottom: 10,
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   trainingInfo: {
     flex: 1,
   },
   trainingName: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 15,
+    fontWeight: '600',
     color: '#333',
     marginBottom: 4,
   },
   trainingDate: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#666',
     marginBottom: 2,
   },
@@ -564,34 +768,34 @@ const styles = StyleSheet.create({
     color: '#999',
   },
   trainingScore: {
-    backgroundColor: '#667eea',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
   scoreText: {
     color: 'white',
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   emptyState: {
     alignItems: 'center',
     paddingVertical: 40,
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#999',
-    marginTop: 10,
+    marginTop: 12,
   },
   emptyStateCard: {
     backgroundColor: 'white',
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 40,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
 });

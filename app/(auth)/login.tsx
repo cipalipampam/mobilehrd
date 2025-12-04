@@ -1,18 +1,17 @@
+import { useAuth } from '@/contexts/AuthContext';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -58,50 +57,65 @@ export default function LoginScreen() {
       style={styles.container} 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <LinearGradient
-        colors={['#667eea', '#764ba2']}
-        style={styles.gradient}
+      <ScrollView 
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView contentContainerStyle={styles.scrollContainer}>
-          <View style={styles.logoContainer}>
-            <View style={styles.logo}>
-              <Ionicons name="business" size={60} color="white" />
+        {/* Header with curved background */}
+        <View style={styles.headerContainer}>
+          <View style={styles.curvedBackground}>
+            {/* Decorative circles */}
+            <View style={styles.decorativeCircle1} />
+            <View style={styles.decorativeCircle2} />
+            <View style={styles.decorativeCircle3} />
+          </View>
+          <View style={styles.logoWrapper}>
+            <View style={styles.logoBox}>
+              <Ionicons name="business" size={48} color="#1a1a1a" />
             </View>
-            <Text style={styles.title}>Mobile HRD</Text>
-            <Text style={styles.subtitle}>Sistem Manajemen Karyawan</Text>
+          </View>
+        </View>
+
+        {/* Form Container */}
+        <View style={styles.formContainer}>
+          {/* Decorative accent line */}
+          <View style={styles.accentLine} />
+          <Text style={styles.loginTitle}>Login</Text>
+
+          {/* Error Message */}
+          {errorMessage !== '' && (
+            <View style={styles.errorContainer}>
+              <Ionicons name="alert-circle" size={18} color="#e74c3c" />
+              <Text style={styles.errorText}>{errorMessage}</Text>
+            </View>
+          )}
+
+          {/* Email Input */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Email</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Example@email.com"
+              placeholderTextColor="#aaa"
+              value={email}
+              onChangeText={(text) => {
+                setEmail(text);
+                if (errorMessage) setErrorMessage('');
+              }}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
           </View>
 
-          <View style={styles.formContainer}>
-            {errorMessage !== '' && (
-              <View style={styles.errorContainer}>
-                <Ionicons name="alert-circle" size={20} color="#e74c3c" />
-                <Text style={styles.errorText}>{errorMessage}</Text>
-              </View>
-            )}
-
-            <View style={styles.inputContainer}>
-              <Ionicons name="mail" size={20} color="#666" style={styles.inputIcon} />
+          {/* Password Input */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Password</Text>
+            <View style={styles.passwordContainer}>
               <TextInput
-                style={styles.input}
-                placeholder="Email"
-                placeholderTextColor="#999"
-                value={email}
-                onChangeText={(text) => {
-                  setEmail(text);
-                  if (errorMessage) setErrorMessage('');
-                }}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
-
-            <View style={styles.inputContainer}>
-              <Ionicons name="lock-closed" size={20} color="#666" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Password"
-                placeholderTextColor="#999"
+                style={styles.passwordInput}
+                placeholder="• • • • • • • •"
+                placeholderTextColor="#aaa"
                 value={password}
                 onChangeText={(text) => {
                   setPassword(text);
@@ -116,31 +130,34 @@ export default function LoginScreen() {
                 style={styles.eyeIcon}
               >
                 <Ionicons 
-                  name={showPassword ? "eye-off" : "eye"} 
+                  name={showPassword ? "eye-off-outline" : "eye-outline"} 
                   size={20} 
-                  color="#666" 
+                  color="#999" 
                 />
               </TouchableOpacity>
             </View>
-
-            <TouchableOpacity
-              style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
-              onPress={handleLogin}
-              disabled={isLoading}
-            >
-              <Text style={styles.loginButtonText}>
-                {isLoading ? 'Memproses...' : 'Masuk'}
-              </Text>
-            </TouchableOpacity>
-
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>
-                Aplikasi untuk karyawan perusahaan
-              </Text>
-            </View>
           </View>
-        </ScrollView>
-      </LinearGradient>
+
+          {/* Login Button */}
+          <TouchableOpacity
+            style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
+            onPress={handleLogin}
+            disabled={isLoading}
+          >
+            <Text style={styles.loginButtonText}>
+              {isLoading ? 'Loading...' : 'Login'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Sign Up Link */}
+          <View style={styles.signupContainer}>
+            {/* <Text style={styles.signupText}>Don't have an account? </Text>
+            <TouchableOpacity>
+              <Text style={styles.signupLink}>Sign Up</Text>
+            </TouchableOpacity> */}
+          </View>
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -148,112 +165,213 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  gradient: {
-    flex: 1,
+    backgroundColor: '#f5f5f5',
   },
   scrollContainer: {
     flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 30,
   },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: 50,
+  
+  // Header Section
+  headerContainer: {
+    height: 280,
+    position: 'relative',
+    marginBottom: 40,
   },
-  logo: {
+  curvedBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 300,
+    backgroundColor: '#1a1a1a',
+    borderBottomLeftRadius: 200,
+    borderBottomRightRadius: 200,
+    transform: [{ scaleX: 2 }],
+    overflow: 'hidden',
+  },
+  decorativeCircle1: {
+    position: 'absolute',
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    top: -50,
+    right: -30,
+  },
+  decorativeCircle2: {
+    position: 'absolute',
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    bottom: 20,
+    left: 20,
+  },
+  decorativeCircle3: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    top: 50,
+    left: -20,
+  },
+  logoWrapper: {
+    position: 'absolute',
+    top: 80,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  logoBox: {
+    width: 90,
+    height: 90,
+    backgroundColor: '#fff',
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
-    textAlign: 'center',
-  },
-  formContainer: {
-    backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 30,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 10,
+      height: 4,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    marginBottom: 20,
-    paddingHorizontal: 15,
-    height: 50,
+  
+  // Form Section
+  formContainer: {
+    paddingHorizontal: 32,
+    paddingBottom: 40,
+    position: 'relative',
   },
-  inputIcon: {
-    marginRight: 10,
+  accentLine: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 2,
+    marginBottom: 16,
+  },
+  loginTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: 32,
+    textAlign: 'left',
+  },
+  
+  // Input Fields
+  inputGroup: {
+    marginBottom: 24,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
   },
   input: {
+    height: 50,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    fontSize: 15,
+    color: '#333',
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 50,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  passwordInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     color: '#333',
   },
   eyeIcon: {
-    padding: 5,
+    padding: 4,
   },
+  
+  // Login Button
   loginButton: {
-    backgroundColor: '#667eea',
-    borderRadius: 12,
     height: 50,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 8,
+    marginBottom: 24,
+    shadowColor: '#1a1a1a',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
   },
   loginButtonDisabled: {
-    backgroundColor: '#ccc',
+    backgroundColor: '#999',
   },
   loginButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
-  footer: {
+  
+  // Sign Up Link
+  signupContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 30,
   },
-  footerText: {
-    color: '#666',
+  signupText: {
     fontSize: 14,
-    textAlign: 'center',
+    color: '#666',
   },
+  signupLink: {
+    fontSize: 14,
+    color: '#1a1a1a',
+    fontWeight: '600',
+  },
+  
+  // Error Message
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fee',
     borderRadius: 8,
     padding: 12,
-    marginBottom: 15,
-    borderLeftWidth: 4,
-    borderLeftColor: '#e74c3c',
+    marginBottom: 20,
   },
   errorText: {
     flex: 1,
     color: '#c0392b',
-    fontSize: 14,
+    fontSize: 13,
     marginLeft: 8,
-    lineHeight: 20,
   },
 });

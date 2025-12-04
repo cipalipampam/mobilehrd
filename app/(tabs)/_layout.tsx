@@ -1,10 +1,8 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
-import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
-import { router } from 'expo-router';
-import { useEffect } from 'react';
-import { View, Text, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { router, Tabs } from 'expo-router';
+import React, { useEffect } from 'react';
+import { ActivityIndicator, Text, View } from 'react-native';
 
 export default function TabLayout() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -20,7 +18,7 @@ export default function TabLayout() {
   if (isLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#667eea" />
+        <ActivityIndicator size="large" color="#1a1a1a" />
         <Text style={{ marginTop: 10, color: '#666' }}>Loading...</Text>
       </View>
     );
@@ -34,7 +32,7 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#667eea',
+        tabBarActiveTintColor: '#1a1a1a',
         tabBarInactiveTintColor: '#999',
         headerShown: false,
         tabBarStyle: {
