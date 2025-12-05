@@ -363,7 +363,7 @@ export default function ProfileScreen() {
 
         {/* Work Information */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Informasi Kerja</Text>
+          <Text style={[styles.sectionTitle, { marginBottom: 16 }]}>Informasi Kerja</Text>
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
               <Ionicons name="business-outline" size={20} color="#666" />
@@ -424,7 +424,7 @@ export default function ProfileScreen() {
 
         {/* Account Settings */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Pengaturan Akun</Text>
+          <Text style={[styles.sectionTitle, { marginBottom: 16 }]}>Pengaturan Akun</Text>
           <View style={styles.settingsCard}>
             <TouchableOpacity 
               style={styles.settingItem}
